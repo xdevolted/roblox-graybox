@@ -1,6 +1,6 @@
 {
   "name": "RobloxGraybox",
-  "emitLegacyScripts": false,
+  "emitLegacyScripts": true,
   "servePort": 34872,
   "tree": {
     "$className": "DataModel",
