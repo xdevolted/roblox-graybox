@@ -1,5 +1,5 @@
 {
-  "name": "RobloxGraybox",
+  "name": "RobloxGrayboxMain",
   "emitLegacyScripts": true,
   "servePort": 34872,
   "tree": {
@@ -7,22 +7,31 @@
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "Shared": {
+        "$path": "../../src/shared"
+      },
+      "MainShared": {
         "$path": "src/shared"
       }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "Server": {
+        "$path": "../../src/server"
+      },
+      "MainServer": {
         "$path": "src/server"
       }
     },
     "ServerStorage": {
       "$className": "ServerStorage",
       "Tests": {
+        "$path": "../../tests"
+      },
+      "MainTests": {
         "$path": "tests"
       },
       "DevPackages": {
-        "$path": "DevPackages"
+        "$path": "../../DevPackages"
       }
     },
     "StarterPlayer": {
@@ -30,6 +39,9 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "Client": {
+          "$path": "../../src/client"
+        },
+        "MainClient": {
           "$path": "src/client"
         }
       }
