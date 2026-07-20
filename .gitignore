@@ -1,0 +1,20 @@
+# Roblox Studio place and model artifacts
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+*.rbxl.lock
+
+# Generated build and tool output
+/build/
+/sourcemap.json
+/Packages/
+/ServerPackages/
+/DevPackages/
+
+# Editor and operating-system noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
