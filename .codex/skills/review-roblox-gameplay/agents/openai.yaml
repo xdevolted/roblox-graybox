@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Roblox Gameplay"
+  short_description: "Independently review gameplay correctness and safety"
+  default_prompt: "Use $review-roblox-gameplay to independently review this gameplay slice against its frozen specification."

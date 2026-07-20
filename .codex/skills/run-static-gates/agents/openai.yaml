@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Static Gates"
+  short_description: "Run and report the deterministic project gates"
+  default_prompt: "Use $run-static-gates to run the complete deterministic pre-Studio gate and report failures."

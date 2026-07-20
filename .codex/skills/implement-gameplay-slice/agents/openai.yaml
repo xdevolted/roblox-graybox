@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Gameplay Slice"
+  short_description: "Build one approved Roblox gameplay slice"
+  default_prompt: "Use $implement-gameplay-slice to implement this approved Roblox gameplay slice with tests."
