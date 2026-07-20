@@ -47,7 +47,6 @@ branches from `staging`, then merge completed slices back into `staging`.
 - `src/server` maps only to `ServerScriptService`.
 - `src/client` maps to `StarterPlayerScripts`.
 - `src/shared` maps to `ReplicatedStorage`.
-- `tests` and Wally development packages map to `ServerStorage`, not replicated storage.
-- Generated runtime packages map to `ReplicatedStorage/Packages`; generated server packages remain in
-  `ServerStorage`.
-
+- `tests` and generated Wally development packages map to `ServerStorage`, not replicated storage.
+- Add explicit `Packages` or `ServerPackages` mappings only when runtime or server dependencies are
+  introduced; this baseline intentionally contains only the TestEZ development dependency.

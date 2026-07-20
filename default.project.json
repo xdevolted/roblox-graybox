@@ -8,9 +8,6 @@
       "$className": "ReplicatedStorage",
       "Shared": {
         "$path": "src/shared"
-      },
-      "Packages": {
-        "$path": "Packages"
       }
     },
     "ServerScriptService": {
@@ -26,9 +23,6 @@
       },
       "DevPackages": {
         "$path": "DevPackages"
-      },
-      "ServerPackages": {
-        "$path": "ServerPackages"
       }
     },
     "StarterPlayer": {
@@ -42,4 +36,3 @@
     }
   }
 }
-
