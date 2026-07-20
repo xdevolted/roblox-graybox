@@ -1,5 +1,3 @@
 $ErrorActionPreference = "Stop"
-. (Join-Path $PSScriptRoot "Initialize-ToolPath.ps1")
 
-rojo serve default.project.json
-
+& (Join-Path $PSScriptRoot "Serve-Place.ps1") -Place "Main"

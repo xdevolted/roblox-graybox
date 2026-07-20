@@ -7,7 +7,6 @@
 
 # Generated build and tool output
 /build/
-/sourcemap.json
 /Packages/
 /ServerPackages/
 /DevPackages/
@@ -17,4 +16,3 @@
 Thumbs.db
 *.swp
 *.tmp
-
