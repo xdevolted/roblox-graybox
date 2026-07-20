@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.roblox-graybox.invalid/schemas/ticket.json",
+  "title": "Roblox Graybox workflow ticket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "type",
+    "risk_tier",
+    "state",
+    "spec_ref",
+    "acceptance_ref",
+    "branch",
+    "attempt_budget",
+    "attempts_used",
+    "authority_sensitive",
+    "touches_persistence",
+    "touches_economy",
+    "created",
+    "human_decisions_pending"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^TCK-[0-9]{4}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "enum": ["feature-slice", "bug", "maintenance", "research"]
+    },
+    "risk_tier": {
+      "enum": ["low", "medium", "high"]
+    },
+    "state": {
+      "enum": [
+        "BACKLOG",
+        "SPEC_READY",
+        "ACCEPTANCE_TESTS_FROZEN",
+        "PLAN_APPROVED",
+        "BUILDING",
+        "STATIC_PASS",
+        "CODE_REVIEW_PASS",
+        "STUDIO_PASS",
+        "HUMAN_APPROVED",
+        "MERGED",
+        "OBSERVING",
+        "CLOSED"
+      ]
+    },
+    "spec_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptance_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string",
+      "pattern": "^feature/[a-z0-9][a-z0-9-]*$"
+    },
+    "attempt_budget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "attempts_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "authority_sensitive": {
+      "type": "boolean"
+    },
+    "touches_persistence": {
+      "type": "boolean"
+    },
+    "touches_economy": {
+      "type": "boolean"
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "human_decisions_pending": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

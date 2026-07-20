@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Gameplay Slice"
+  short_description: "Plan one small testable gameplay change"
+  default_prompt: "Use $plan-gameplay-slice to plan the smallest implementable slice from this approved feature."

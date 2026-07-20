@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specify Roblox Feature"
+  short_description: "Turn a game idea into frozen feature behavior"
+  default_prompt: "Use $specify-roblox-feature to turn my Roblox gameplay idea into a concise specification and acceptance scenarios."

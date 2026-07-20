@@ -1,67 +1,56 @@
 # Roblox Graybox
 
-A local-first, multi-place-ready foundation for a server-authoritative Roblox gameplay prototype.
-This repository represents one game/experience. The filesystem and Git repository are the source
-of truth, and Rojo synchronizes each place with Roblox Studio.
+A local-first, single-place foundation for proving a server-authoritative Roblox gameplay loop before investing in production systems. Git and the filesystem are authoritative; Rojo synchronizes scripts into Studio.
 
 ## Prerequisites
 
-- Roblox Studio
+- Roblox Studio with the Rojo plugin and built-in MCP server
 - Git
-- Rokit
+- Rokit 1.2.0
 - PowerShell 5.1 or newer
-
-GitHub CLI is installed for future remote setup, but authentication is not required for local work.
 
 ## First use
 
 ```powershell
-rokit install
-.\scripts\Install-Packages.ps1
+.\scripts\Setup.ps1
 .\scripts\Checks.ps1
 .\scripts\Serve.ps1
 ```
 
-Open a baseplate in Roblox Studio, open the Rojo plugin, and connect to `localhost:34872` while the
-Main serve command is running. Studio authentication and plugin connection are manual steps.
+Open a baseplate in Studio and connect the Rojo plugin to `localhost:34872`. Studio authentication, MCP connection, playtesting, and publishing remain human-controlled.
 
-## Place commands
-
-`Main` is the initial place. Commands that accept `-Place` resolve the canonical project at
-`places\<PlaceName>\<placename>.project.json` and write generated files beneath
-`build\<PlaceName>`.
+## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `.\scripts\Serve-Place.ps1 -Place Main` | Start the Main Rojo development server |
-| `.\scripts\Serve.ps1` | Compatibility wrapper that serves Main |
-| `.\scripts\Build.ps1 -Place Main` | Build `build\Main\Main.rbxlx` |
-| `.\scripts\Sourcemap.ps1 -Place Main` | Generate `build\Main\sourcemap.json` |
-| `.\scripts\Checks.ps1` | Format-check and lint source, then discover, build, and sourcemap every place |
-| `.\scripts\Check-All.ps1` | Compatibility wrapper for `Checks.ps1` |
-| `.\scripts\Format.ps1` | Format shared and place-specific Luau files |
-| `.\scripts\Format-Check.ps1` | Check formatting without changing files |
-| `.\scripts\Lint.ps1` | Run Selene across shared and place-specific source |
-| `.\scripts\Install-Packages.ps1` | Install Wally packages |
+| `.\scripts\Setup.ps1` | Install pinned tools/packages and prepare pinned Roblox analyzer definitions |
+| `.\scripts\Serve.ps1` | Serve `default.project.json` on port 34872 |
+| `.\scripts\Build.ps1` | Build `build\RobloxGraybox.rbxlx` |
+| `.\scripts\Sourcemap.ps1` | Generate `build\sourcemap.json` |
+| `.\scripts\Test.ps1` | Run deterministic engine-free Lune specifications |
+| `.\scripts\Checks.ps1` | Run formatting, lint, strict analysis, tests, whitespace validation, and build |
+| `.\scripts\Format.ps1` | Format Luau source and tests |
 
-## Layout and authority boundaries
+## Layout
 
-- `src/client`, `src/server`, and `src/shared` contain code shared across this game's places.
-- `tests` contains tests shared across places.
-- `places/<PlaceName>/src` and `places/<PlaceName>/tests` contain place-specific code and tests.
-- `places/Main/main.project.json` is the canonical Main Rojo configuration.
-- Root and place-specific server code maps only to `ServerScriptService`.
-- Root and place-specific client code maps only to `StarterPlayerScripts`.
-- Root and place-specific shared code maps to `ReplicatedStorage`.
-- Tests and generated Wally development packages map to `ServerStorage`, not replicated storage.
-- Add explicit `Packages` or `ServerPackages` mappings only when runtime or server dependencies are
-  introduced; this baseline intentionally contains only the TestEZ development dependency.
+- `src/shared`: engine-free rules and types where practical.
+- `src/server`: authoritative server adapters and bootstrap.
+- `src/client`: input and temporary client feedback.
+- `tests`: repo-owned Lune runner and `*.spec.luau` suites.
+- `docs/features`: approved behavior, frozen scenarios, plans, and open questions.
+- `docs/tickets`: durable workflow state.
+- `.codex/skills`: repo-local specification, planning, implementation, checking, and review procedures.
+- `build`: ignored generated places, sourcemaps, and downloaded type definitions.
 
-Add another place by creating its source and test directories plus exactly one lowercase-named Rojo
-project file under `places/<PlaceName>`. Do not create a nested Git repository or add Roblox game or
-place IDs to scaffold a local place.
+The root `default.project.json` is the only Rojo project. Introduce a multi-place layout only when a second real place is required, and share proven common code through explicit packages.
 
-## Branch flow
+## Feature flow
 
-`main` is stable. `staging` is the integration branch and the initial working branch. Create feature
-branches from `staging`, then merge completed slices back into `staging`.
+1. Convert the idea into a specification and acceptance scenarios; resolve material questions and freeze the scenarios.
+2. Plan small behavioral slices, starting with engine-free rules and tests.
+3. Implement one slice on `feature/<short-name>` and run `Checks.ps1`.
+4. Run an independent review; the builder fixes valid findings within the risk budget.
+5. Test the exact clean commit in Studio, then have the human judge comprehension and fun.
+6. Merge to `main` only when deterministic gates pass and blockers are resolved.
+
+See `docs/WORKFLOW.md` for ticket states, evidence, playtest protocol, and later-stage triggers.
