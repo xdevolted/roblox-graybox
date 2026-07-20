@@ -1,17 +1,12 @@
-param(
-    [ValidatePattern("^[A-Za-z0-9][A-Za-z0-9_-]*$")]
-    [string]$Place = "Main"
-)
-
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Initialize-ToolPath.ps1")
-. (Join-Path $PSScriptRoot "Place-Projects.ps1")
 
-$placeProject = Get-PlaceProject -Place $Place
-New-Item -ItemType Directory -Force -Path $placeProject.OutputDirectory | Out-Null
+$outputDirectory = Join-Path $projectRoot "build"
+$projectPath = Join-Path $projectRoot "default.project.json"
+$outputPath = Join-Path $outputDirectory "sourcemap.json"
 
-$outputPath = Join-Path $placeProject.OutputDirectory "sourcemap.json"
-& rojo sourcemap $placeProject.ProjectPath --output $outputPath
+New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+& rojo sourcemap $projectPath --output $outputPath
 if ($LASTEXITCODE -ne 0) {
-    throw "Rojo sourcemap failed for place '$($placeProject.Name)' with exit code $LASTEXITCODE."
+    throw "Rojo sourcemap failed with exit code $LASTEXITCODE."
 }
