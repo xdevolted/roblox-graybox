@@ -9,7 +9,6 @@
 /build/
 /Packages/
 /ServerPackages/
-/DevPackages/
 
 # Editor and operating-system noise
 .DS_Store

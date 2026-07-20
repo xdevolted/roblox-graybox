@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Rokit 1.2.0
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "rokit.zip"
+          $installDirectory = Join-Path $env:RUNNER_TEMP "rokit"
+          $url = "https://github.com/rojo-rbx/rokit/releases/download/v1.2.0/rokit-1.2.0-windows-x86_64.zip"
+          $expectedHash = "f9ba1704014ff67d51e8005f605955c7c26d2429a5312a9419dc477fc310e96d"
+
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "Rokit archive hash mismatch. Expected $expectedHash but received $actualHash."
+          }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $installDirectory
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $installDirectory
+
+      - name: Set up pinned dependencies
+        shell: pwsh
+        run: .\scripts\Setup.ps1
+
+      - name: Run deterministic checks
+        shell: pwsh
+        run: .\scripts\Checks.ps1

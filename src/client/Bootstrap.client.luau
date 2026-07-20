@@ -1,9 +1,7 @@
 --!strict
 
-local Prototype = script.Parent.Prototype
-
-local InputController = require(Prototype.InputController)
-local DebugHudController = require(Prototype.DebugHudController)
+local InputController = require(script.Parent.Prototype.InputController)
+local DebugHudController = require(script.Parent.Prototype.DebugHudController)
 
 InputController.start()
 DebugHudController.start()

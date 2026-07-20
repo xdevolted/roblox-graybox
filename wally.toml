@@ -10,5 +10,3 @@ realm = "shared"
 [server-dependencies]
 
 [dev-dependencies]
-TestEZ = "roblox/testez@0.4.1"
-
