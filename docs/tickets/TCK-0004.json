@@ -3,7 +3,7 @@
   "title": "Server-owned objective qualification and immediate success",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "ACCEPTANCE_TESTS_FROZEN",
+  "state": "PLAN_APPROVED",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0004-objective-success",
@@ -13,7 +13,5 @@
   "touches_persistence": false,
   "touches_economy": false,
   "created": "2026-07-21",
-  "human_decisions_pending": [
-    "Owner approval of the detailed TCK-0004 plan in docs/features/first-playable/plan.md is required before PLAN_APPROVED. The proposed boundary permits implementation changes only in src/server/GameLoop/ObjectiveSuccessAdapter.luau, src/server/Bootstrap.server.luau, and tests/GameLoop/ObjectiveSuccessAdapter.spec.luau; translates only a server-confirmed living owner's current-Character entry into one matching-generation SUCCEED event; defers timers, failure sources, result/reset intervals, replay, respawn orchestration, objective repositioning, client presentation, remotes, persistence/economy, publishing, multi-place work, and Phase 2; and requires the planned deterministic matrix, independent review, and scoped one-player/two-player Studio evidence."
-  ]
+  "human_decisions_pending": []
 }
