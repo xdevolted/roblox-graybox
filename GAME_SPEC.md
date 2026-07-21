@@ -11,13 +11,15 @@ Stay alive on a small floating platform while moving to a clearly marked safe zo
 ## First-graybox experience
 
 - Support one to eight players in one solid gray platform arena.
+- Give each player an independent round lifecycle; one player's result or reset never ends another player's round.
 - Spawn players safely inside a guarded starting area instead of over the void.
 - Show one glowing safe zone in a valid position elsewhere on the platform.
 - Let Roblox character movement be the primary player action.
-- End a round in success when the server confirms the safe-zone condition.
+- End a round in success immediately when the server confirms that the player entered the safe zone.
 - End a round in failure when time expires, the character dies, or the character falls into the void.
 - Show a countdown, success/failure result, and reset countdown using primitive debug feedback.
 - After the result interval, respawn at the start, move the safe zone to a different valid position, reset the timer, and begin the next round automatically.
+- Start a late-joining player's independent round immediately without disturbing existing players.
 - Keep all state session-only and every outcome server-authoritative.
 
 ## Authority
@@ -36,4 +38,4 @@ The server owns round state, time expiration, zone qualification, success/failur
 
 - No persistence, economy, monetization, publishing automation, final UI/art, large content systems, second place, or framework.
 - Later iterations may add simple obstacles without changing the core move-to-safety loop.
-- Multiplayer result ownership and the exact safe-zone qualification rule must be approved before acceptance scenarios are frozen.
+- Multiplayer rounds are independent per player, safe-zone entry succeeds immediately after server confirmation, and late joiners begin their own rounds immediately.
