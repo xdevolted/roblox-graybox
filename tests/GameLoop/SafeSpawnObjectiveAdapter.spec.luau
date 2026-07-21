@@ -61,6 +61,11 @@ type Record = {
     instance: any,
 }
 
+type ExpectedGuard = {
+    size: { x: number, y: number, z: number },
+    position: { x: number, y: number, z: number },
+}
+
 local function newInstanceFactory()
     local records: { Record } = {}
     local world = {
@@ -157,7 +162,8 @@ return {
                 assert(#recordsOfKind(records, "ARENA") == 1, "one arena root is required")
                 assert(#recordsOfKind(records, "PLATFORM") == 1, "one platform is required")
                 assert(#recordsOfKind(records, "SPAWN") == 1, "one spawn is required")
-                assert(#recordsOfKind(records, "GUARD") == 3, "three guard walls are required")
+                local guards = recordsOfKind(records, "GUARD")
+                assert(#guards == 3, "exactly three guard walls are required")
                 assert(
                     #recordsOfKind(records, "OBJECTIVES") == 1,
                     "one objectives container is required"
@@ -185,6 +191,53 @@ return {
                 assert(
                     spawn.position.x == 0 and spawn.position.y == 1 and spawn.position.z == 0,
                     "spawn position must match plan"
+                )
+
+                local arena = recordsOfKind(records, "ARENA")[1].instance
+                local expectedGuards: { [string]: ExpectedGuard } = {
+                    StartBackWall = {
+                        size = { x = 20, y = 4, z = 1 },
+                        position = { x = 0, y = 2.5, z = -10 },
+                    },
+                    StartLeftWall = {
+                        size = { x = 1, y = 4, z = 20 },
+                        position = { x = -10, y = 2.5, z = 0 },
+                    },
+                    StartRightWall = {
+                        size = { x = 1, y = 4, z = 20 },
+                        position = { x = 10, y = 2.5, z = 0 },
+                    },
+                }
+                local seenGuards: { [string]: any } = {}
+                for _, guard in guards do
+                    local name = guard.spec.name
+                    local expected = expectedGuards[name]
+                    assert(expected ~= nil, `unexpected guard wall {name}`)
+                    assert(seenGuards[name] == nil, `duplicate guard wall {name}`)
+                    assert(guard.spec.className == "Part", `{name} must be a Part`)
+                    assert(guard.parent == arena, `{name} must be parented to the arena root`)
+                    assert(
+                        guard.spec.size.x == expected.size.x
+                            and guard.spec.size.y == expected.size.y
+                            and guard.spec.size.z == expected.size.z,
+                        `{name} size must match plan`
+                    )
+                    assert(
+                        guard.spec.position.x == expected.position.x
+                            and guard.spec.position.y == expected.position.y
+                            and guard.spec.position.z == expected.position.z,
+                        `{name} position must match plan`
+                    )
+                    seenGuards[name] = guard.instance
+                end
+                assert(seenGuards.StartBackWall ~= nil, "StartBackWall is required")
+                assert(seenGuards.StartLeftWall ~= nil, "StartLeftWall is required")
+                assert(seenGuards.StartRightWall ~= nil, "StartRightWall is required")
+                assert(
+                    seenGuards.StartBackWall ~= seenGuards.StartLeftWall
+                        and seenGuards.StartBackWall ~= seenGuards.StartRightWall
+                        and seenGuards.StartLeftWall ~= seenGuards.StartRightWall,
+                    "each expected guard wall must be a distinct Instance"
                 )
                 controller.stop()
             end,
