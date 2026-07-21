@@ -43,3 +43,48 @@ No Studio behavior was assessed or inferred by this review.
 ## Disposition
 
 **Changes required.** The implementation has no BLOCKER or MAJOR defect, but the planned SOA-01 deterministic evidence is incomplete until the exact three guard-wall descriptors are asserted. TCK-0003 should remain at `STATIC_PASS`; the reviewer did not change implementation or tests, advance the ticket, begin Studio, or consume another builder attempt.
+
+## Independent re-review
+
+**Review type:** One authorized independent re-review
+
+**Initial implementation commit:** `214f2e85db584b1a98fbef02bccdfc88bb3afa3a`
+
+**Initial review-record commit:** `8242738c16e239373f8bf518cdd96c060c8ee558`
+
+**Corrected implementation commit:** `de47e3e2297eca05040d82a095d1a91144d36a6b`
+
+### Final findings
+
+- BLOCKER: 0
+- MAJOR: 0
+- MINOR: 0
+- NIT: 0
+
+No new or remaining findings.
+
+### Resolution of the original MINOR
+
+**Resolved.** SOA-01 now obtains exactly three `GUARD` records and defines independent plan-derived expectations for `StartBackWall`, `StartLeftWall`, and `StartRightWall` in `tests/GameLoop/SafeSpawnObjectiveAdapter.spec.luau:165` through line 210. The loop at lines 212 through 231 rejects an unexpected or duplicate name and independently checks each wall's exact `Part` class, arena-root parent, size, and position. Lines 233 through 240 require all three expected names and distinct Instance identities. Therefore, a missing, duplicate, unexpected, renamed, resized, repositioned, reparented, non-`Part`, or identity-aliased guard wall fails deterministically.
+
+The expectations are not obtained from `SafeSpawnObjectiveAdapter`. Their literal names, sizes, and positions match the approved contract at `docs/features/first-playable/plan.md:227` through line 229, independently of the production descriptors at `src/server/GameLoop/SafeSpawnObjectiveAdapter.luau:63` through line 82.
+
+### Complete implementation revalidation
+
+- `ObjectivePlacement` retains the exact private eight-slot catalog at `src/shared/GameLoop/ObjectivePlacement.luau:24` through line 34, validates the preferred index and assigns by a deterministic cyclic first-free scan at lines 36 through 71, and returns `NO_AVAILABLE_SLOT` without mutation after all eight slots are occupied. Its immutable per-player assignments, isolated removal, and idempotent destruction remain covered by OPL-01 through OPL-09 in `tests/GameLoop/ObjectivePlacement.spec.luau`.
+- `SafeSpawnObjectiveAdapter` remains exclusively server-owned: it creates the approved arena and inert objective geometry, connects `PlayerAdded` and `PlayerRemoving` before enumeration, guards duplicate initialization, keeps one objective association per assigned Player, and leaves existing assignments and Instance identities stable during late join and overflow. The adapter exposes only `getAssignment`, `getObjective`, and `stop` at `src/server/GameLoop/SafeSpawnObjectiveAdapter.luau:260` through line 264.
+- Player removal invalidates only the addressed adapter association before Instance destruction and slot release at `src/server/GameLoop/SafeSpawnObjectiveAdapter.luau:199` through line 211. `stop()` disconnects both signals, clears all associations, destroys owned Instances and registry state, and is idempotent at lines 236 through 258. SOA-04 through SOA-09 cover duplicate signals, late-join isolation, character-reload non-observation, per-player cleanup, ninth-player overflow, and shutdown.
+- The production slice still introduces no remote, client ingress, character observer, touch/occupancy qualification, lifecycle transition, timer, delayed task, respawn orchestration, persistence, economy, or client presentation. Objective qualification and success, failure observation, reset/replay, and feedback remain deferred exactly as approved. `Bootstrap.server.luau` still starts one safe-spawn/objective controller after the existing round controller and makes no other runtime change.
+- Attempt 2 changed only `docs/implementation/tck-0003-builder-attempts.md`, `docs/tickets/TCK-0003.json`, and `tests/GameLoop/SafeSpawnObjectiveAdapter.spec.luau` in correction commit `de47e3e2297eca05040d82a095d1a91144d36a6b`. No production source file or runtime behavior changed after the initial implementation commit.
+
+### Re-review check result
+
+- The infrastructure-only retry of pull-request CI run `29815068801`, attempt 2, tested exact commit `de47e3e2297eca05040d82a095d1a91144d36a6b` and completed successfully. Repository checkout, Rokit 1.2.0 installation, pinned dependency setup, deterministic checks, and job completion all passed; the deterministic stage reported 59 tests passed and 0 failed.
+- Push CI on the same corrected commit remained successful. PR #10 was open, cleanly mergeable, and limited to the eight authorized implementation, test, ticket, attempt, and review files when re-inspected.
+- Read-only Git inspection confirmed the exact original and correction commits, no diff whitespace errors, synchronized local/remote implementation heads, and no production/runtime delta in attempt 2. The reviewer did not run `scripts/Checks.ps1`, edit reviewed code or tests, perform Studio work, advance the ticket, commit, push, or consume another builder attempt.
+
+No Studio behavior was assessed or inferred by this re-review.
+
+### Final disposition
+
+**Ready for human/Studio validation.** The original MINOR is resolved, the corrected implementation has zero BLOCKER, MAJOR, MINOR, and NIT findings, and the re-review threshold is met. The initial findings and disposition above remain preserved as historical review evidence.
