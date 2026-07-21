@@ -21,7 +21,22 @@ if ($LASTEXITCODE -ne 0) {
 
 & git diff --check
 if ($LASTEXITCODE -ne 0) {
-    throw "Git whitespace validation failed with exit code $LASTEXITCODE."
+    throw "Git whitespace validation failed for unstaged changes with exit code $LASTEXITCODE."
+}
+
+& git diff --cached --check
+if ($LASTEXITCODE -ne 0) {
+    throw "Git whitespace validation failed for staged changes with exit code $LASTEXITCODE."
+}
+
+$trackedWhitespace = @(& git grep -n -I -E "[[:blank:]]+$" -- .)
+$trackedWhitespaceExit = $LASTEXITCODE
+if ($trackedWhitespaceExit -eq 0) {
+    $trackedWhitespace | Write-Output
+    throw "Tracked files contain trailing whitespace."
+}
+if ($trackedWhitespaceExit -ne 1) {
+    throw "Tracked-file whitespace scan failed with exit code $trackedWhitespaceExit."
 }
 
 & (Join-Path $PSScriptRoot "Build.ps1")
