@@ -13,5 +13,7 @@
   "touches_persistence": false,
   "touches_economy": false,
   "created": "2026-07-20",
-  "human_decisions_pending": []
+  "human_decisions_pending": [
+    "Complete the approved local multiplayer Studio checkpoint: add a late second player, verify independent ACTIVE generation 1 state without changing player one, remove one player, verify the remaining state is unchanged, and record server/client warnings or errors."
+  ]
 }
