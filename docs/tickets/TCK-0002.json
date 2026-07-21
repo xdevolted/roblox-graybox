@@ -3,7 +3,7 @@
   "title": "Server-authoritative per-player round adapter",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "CODE_REVIEW_PASS",
+  "state": "STUDIO_PASS",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0002-server-round-adapter",
@@ -13,7 +13,5 @@
   "touches_persistence": false,
   "touches_economy": false,
   "created": "2026-07-20",
-  "human_decisions_pending": [
-    "Complete the approved local multiplayer Studio checkpoint: add a late second player, verify independent ACTIVE generation 1 state without changing player one, remove one player, verify the remaining state is unchanged, and record server/client warnings or errors."
-  ]
+  "human_decisions_pending": []
 }
