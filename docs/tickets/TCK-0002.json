@@ -1,0 +1,19 @@
+{
+  "id": "TCK-0002",
+  "title": "Server-authoritative per-player round adapter",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "ACCEPTANCE_TESTS_FROZEN",
+  "spec_ref": "docs/features/first-playable/specification.md",
+  "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
+  "branch": "feature/tck-0002-server-round-adapter",
+  "attempt_budget": 2,
+  "attempts_used": 0,
+  "authority_sensitive": true,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-07-20",
+  "human_decisions_pending": [
+    "Owner approval of the detailed TCK-0002 slice plan is required before PLAN_APPROVED."
+  ]
+}
