@@ -1,6 +1,6 @@
 # First playable acceptance scenarios
 
-**Status:** Draft; NOT FROZEN until the owner resolves `open-questions.md` and approves this file.
+**Status:** FROZEN by the owner on 2026-07-20. Implementations and reviews must not weaken these scenarios.
 
 ## FP-01 — Safe spawn and automatic start
 
@@ -14,9 +14,9 @@
 
 **Given** an active round and a living player who has not already received a result
 
-**When** the server confirms the approved safe-zone qualification rule
+**When** the server confirms that the player entered the safe zone
 
-**Then** the first accepted terminal result is success and later terminal events for that round cannot replace it.
+**Then** the first accepted terminal result is immediate success and later terminal events for that round cannot replace it.
 
 ## FP-03 — Timeout failure
 
@@ -64,7 +64,7 @@
 
 **When** that player disconnects
 
-**Then** server adapters remove player/character listeners and state without duplicate transitions or a stuck lifecycle; any effect on other players follows the approved multiplayer result model.
+**Then** server adapters remove that player's listeners and state without duplicate transitions or a stuck lifecycle, and no other player's independent lifecycle changes.
 
 ## FP-09 — Late join
 
@@ -72,7 +72,7 @@
 
 **When** the server initializes the late joiner
 
-**Then** their spawn and round participation follow the approved late-join policy without changing an existing result or starting a duplicate round.
+**Then** the server spawns them safely and starts exactly one independent round immediately without changing any existing player's state or result.
 
 ## FP-10 — Consecutive replay stability
 

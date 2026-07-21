@@ -1,12 +1,12 @@
 # First playable specification
 
-**Status:** Draft; product questions remain open and acceptance scenarios are not frozen.
+**Status:** Approved; acceptance scenarios frozen by the owner on 2026-07-20.
 
 ## Player-facing behavior
 
 The player spawns on a small floating gray platform inside an identifiable guarded start. A glowing safe zone appears at a valid position elsewhere on the platform and the server begins the round timer. The player moves with normal Roblox character controls. Reaching the server-recognized safe-zone condition wins; timeout, death, or falling into the void fails. A short result display is followed by automatic respawn, a new valid safe-zone position different from the previous round, a reset timer, and another round.
 
-The first graybox supports one to eight players, primitive countdown/result/reset feedback, and repeatable session-only rounds. The multiplayer result model and safe-zone qualification rule remain open in `open-questions.md`.
+The first graybox supports one to eight players, primitive countdown/result/reset feedback, and repeatable session-only rounds. Every player owns an independent round lifecycle. Success occurs immediately after the server confirms safe-zone entry. A late joiner starts an independent round immediately without changing any existing player's state.
 
 ## Proposed lifecycle
 
@@ -24,7 +24,7 @@ The first graybox supports one to eight players, primitive countdown/result/rese
 - Server: lifecycle state, monotonically increasing round generation, accepted terminal result, time expiration, death/fall observation, safe-zone qualification, valid zone selection, respawn, and reset.
 - Client: ordinary character input and presentation of replicated state only.
 - There is no client API for declaring success, failure, timeout, reset, or round generation. Any such unexpected request must be rejected without mutation.
-- Adapter inputs must validate event type, current state/context, player/round ownership after the multiplayer decision, matching generation, and duplicate frequency.
+- Adapter inputs must validate event type, current state/context, player/round ownership, matching generation, and duplicate frequency.
 
 ## Reset and replay invariants
 
@@ -41,7 +41,7 @@ The first graybox supports one to eight players, primitive countdown/result/rese
 3. Server-owned safe-zone placement and qualification plus one validated outcome path.
 4. Server-owned timeout/death/void failure paths and reliable respawn/reset.
 5. Primitive client countdown/result/reset feedback and default movement integration.
-6. Multiplayer hardening only after the owner selects the multiplayer result model.
+6. Multiplayer hardening for independent player lifecycles, including join/leave cleanup and isolation.
 
 ## Non-goals
 
