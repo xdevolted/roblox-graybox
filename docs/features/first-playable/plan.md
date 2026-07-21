@@ -87,6 +87,8 @@ Registry-level rejections are limited to `DUPLICATE_PLAYER`, `UNKNOWN_PLAYER`, `
 
 Add one server adapter that owns the `Players.PlayerAdded` and `Players.PlayerRemoving` connections and a single registry. It connects both signals before enumerating `Players:GetPlayers()` so startup cannot miss a player; the registry's duplicate guard makes the connect/enumerate race harmless. `Bootstrap.server.luau` starts this adapter once and retains its controller for the server lifetime.
 
+For deterministic adapter tests, construction may accept only a Players-like dependency, registry constructor, and attribute writer with the exact operations the adapter uses. Normal production construction defaults to the real Roblox `Players` service, the real registry, and `Player:SetAttribute`. This seam must not become a framework, service container, generalized signal abstraction, networking layer, or additional runtime architecture.
+
 The controller exposes only server-side methods to obtain the current session handle, submit a trusted lifecycle event with that handle, inspect an immutable state for other server adapters, and stop. No method is connected to a `RemoteEvent` or `RemoteFunction`.
 
 The injected publisher writes these server-owned attributes on the corresponding `Player` and removes them during cleanup:
@@ -118,6 +120,7 @@ The server adapter owns Roblox signal connections and Player attributes. The reg
 | `src/server/GameLoop/PlayerRoundAdapter.luau` | Thin `Players` integration, server-only controller API, Player attribute publication, join/leave wiring, and connection cleanup. |
 | `src/server/Bootstrap.server.luau` | Start exactly one adapter controller; no other gameplay behavior. |
 | `tests/GameLoop/PlayerRoundRegistry.spec.luau` | Complete deterministic registry, authority, isolation, stale-event, cleanup, and replay coverage with fake player keys and a recording publisher. |
+| `tests/GameLoop/PlayerRoundAdapter.spec.luau` | Deterministic Players signal ordering, duplicate-start protection, attribute publication, session secrecy, leave cleanup, shutdown, and retained-callback coverage using narrow fakes. |
 
 `RoundLifecycle.luau`, `RoundLifecycle.spec.luau`, all client files, the frozen scenarios, and product-decision documents are not planned to change. No package, project-map, configuration, framework, service container, generalized networking layer, or dependency upgrade is required.
 
@@ -141,6 +144,23 @@ The server adapter owns Roblox signal connections and Player attributes. The reg
 | PRR-14 | Malformed events and invalid failure reasons preserve the current state and publisher history. |
 | PRR-15 | Destroy removes every player independently, invalidates all handles, disconnect-seam cleanup is idempotent, and later operations reject as destroyed. |
 | PRR-16 | Every published non-nil snapshot is the same immutable state accepted from `RoundLifecycle`; rejected operations never publish. |
+
+Thin adapter wiring matrix:
+
+| ID | Test |
+| --- | --- |
+| PRA-01 | `PlayerAdded` and `PlayerRemoving` are connected before existing players are enumerated. |
+| PRA-02 | A player present during startup is initialized exactly once. |
+| PRA-03 | A connect/enumeration race or duplicate `PlayerAdded` does not create a second lifecycle or session. |
+| PRA-04 | Two players remain isolated through initialization, accepted transitions, and publication. |
+| PRA-05 | Accepted snapshots write exactly the four approved server-owned attributes with the accepted values. |
+| PRA-06 | Rejected, duplicate, stale, future, wrong-session, and invalid events do not republish attributes. |
+| PRA-07 | Session handles are never written to attributes, returned through replication, or otherwise exposed to clients. |
+| PRA-08 | `PlayerRemoving` removes and invalidates only that player without changing another player. |
+| PRA-09 | `stop()` disconnects every owned signal connection, destroys registry state, and is idempotent. |
+| PRA-10 | Signals fired after `stop()` cannot initialize, mutate, publish, or recreate state. |
+| PRA-11 | Registry or publication callbacks retained from an old session cannot mutate a rejoined player. |
+| PRA-12 | Production and test construction introduce no `RemoteEvent`, `RemoteFunction`, or client-authoritative transition path. |
 
 The existing `RoundLifecycle.spec.luau` suite remains unchanged and continues to prove the model's event-shape, phase, generation, terminal immutability, reset, and replay rules.
 
