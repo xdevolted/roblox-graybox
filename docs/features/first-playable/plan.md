@@ -379,11 +379,154 @@ The exact next decision is: the owner must approve this TCK-0003 boundary, file 
 
 ## Slice 4 — Server-owned objective qualification and success
 
-- Behavior: observe only a living player's entry into that player's assigned objective, capture the current round session handle and generation from the merged round controller, and submit exactly one server-owned `SUCCEED` event immediately after qualification.
-- Boundaries: no client request, dwell duration, timer, failure source, reset, respawn, or UI. Own and clean all touch/overlap connections and reject another player's objective, stale character, stale session, stale generation, and duplicate entry.
-- Tests: deterministic qualification filtering and adapter orchestration through narrow fakes; Studio verifies real character parts, physics queries/touches, immediate success, multiplayer isolation, and cleanup.
-- Risk: medium. Attempt budget: two.
-- Exit: static/review pass, then human Studio evidence for the remaining TCK-0003-blocked portions of FP-02 and relevant FP-06/FP-07/FP-08 isolation.
+**Ticket:** `TCK-0004` — Server-owned objective qualification and immediate success
+
+**Plan status:** Proposed. The owner must explicitly approve this detailed slice before the ticket may advance from `ACCEPTANCE_TESTS_FROZEN` to `PLAN_APPROVED`, an implementation branch may be created, or a builder attempt may be consumed.
+
+### Exact behavioral boundary
+
+TCK-0004 turns the inert per-player objective foundation into one server-authoritative success path:
+
+- Observe the server-created objective currently associated with each connected Player through the merged `SafeSpawnObjectiveAdapter` controller's read-only `getObjective(player)` seam.
+- Treat the first server-observed `Touched` signal from a BasePart descending from that Player's current living Character as confirmed entry into that Player's own objective.
+- At qualification time, read the current opaque session handle and immutable round state from the merged `PlayerRoundAdapter` controller. Require a current handle, `ACTIVE` phase, and a nonnegative integer generation.
+- Submit exactly one server-owned `{ type = "SUCCEED", generation = currentGeneration }` event for that player/session/generation through `applyServerEvent` immediately after qualification.
+- Let the merged lifecycle and registry remain the final authority. An accepted event publishes `RESULT`, generation unchanged, `SUCCESS`, and nil failure reason through the four existing Player attributes.
+- Ignore unrelated physical contacts, another player's Character, a dead or missing Humanoid, a stale Character, a stale/replaced objective, a missing player/session/state, a non-`ACTIVE` state, and repeated contacts for a session/generation without mutation or another submission.
+- Preserve every other player's objective, session, lifecycle, and attributes. A success for one player cannot qualify or transition another.
+
+This slice implements only objective qualification and immediate success. It does not add a round timer, timeout/death/void failure, result duration, reset, replay, respawn orchestration, objective repositioning, client presentation, publishing, or any complete first-playable claim.
+
+### Server authority, validation, and deduplication
+
+- The server owns objective identity, Character identity, living-state inspection, qualification, session/generation capture, and lifecycle submission. No client request or replicated attribute is read as authority.
+- A touch qualifies only when the touched BasePart is a descendant of `player.Character`, that Character is still the Player's current Character, and its current Humanoid exists with `Health > 0`.
+- The bound objective must still be identical to `objectiveController.getObjective(player)` when the callback runs. A retained callback from a destroyed, removed, or replaced objective is rejected.
+- The adapter reads `getSessionHandle(player)` and `getState(player)` at touch time rather than capturing them when the objective listener is connected. This prevents a listener retained across Character or session changes from intentionally targeting an old round.
+- Before submitting, the adapter records the attempted opaque handle plus generation. Further body-part touches or repeated `Touched` signals for that exact pair are ignored whether the trusted lifecycle submission accepts or rejects; a genuinely new handle or later generation is independently eligible for future slices.
+- `PlayerRoundAdapter.applyServerEvent` remains responsible for the final session-handle, phase, event-shape, and generation checks. A race that makes the captured context stale is rejected without republishing state.
+- No `RemoteEvent`, `RemoteFunction`, client script, client callback, Bindable-based client ingress, or writable success attribute is introduced.
+
+### Thin objective-success adapter and event flow
+
+Add `ObjectiveSuccessAdapter.start(roundController, objectiveController)` with optional narrow test dependencies for a Players-like source and the exact Character/Humanoid inspection operations used by production. Normal production construction defaults to the real `Players` service and Roblox Instance APIs; the seam must not become a service container, physics framework, generalized signal abstraction, or networking layer.
+
+The frozen controller exposes only:
+
+| API | Responsibility |
+| --- | --- |
+| `stop()` | Disconnect global and per-player signals, invalidate retained callbacks, clear observation state, and remain idempotent. |
+
+Event flow:
+
+1. `Bootstrap.server.luau` starts and retains the merged round controller, then the merged safe-spawn/objective controller, then exactly one objective-success controller receiving both existing controllers.
+2. The objective-success adapter connects `PlayerAdded` and `PlayerRemoving` before enumerating current players. It starts after both provider controllers so existing players already have a round session and objective.
+3. Per-player setup connects `CharacterAdded` as an idempotent retry point, queries the current objective through `getObjective`, and connects that objective's `Touched` signal at most once. A normal late join is observed after the provider controllers; Character creation retries setup without a delayed task if the objective was not yet available.
+4. A touch callback performs the objective, current-Character, living-Humanoid, owner, handle, state, phase, generation, and per-handle/generation duplicate checks before submitting `SUCCEED`.
+5. An accepted transition is published only by the merged round controller. The objective-success adapter writes no Player attributes and changes no objective Instance.
+6. Character replacement preserves the player's objective listener but makes Parts from the old Character ineligible. The new current living Character may qualify only if the same session/generation has not already attempted success.
+7. `PlayerRemoving` invalidates and disconnects only that player's Character/objective observations. Any retained callback checks the invalidated observation and current controller identities before it can submit.
+8. `stop()` first prevents new work, disconnects both global signals and every owned per-player connection, invalidates all observation records, and is a repeated no-op after the first call.
+
+TCK-0004 introduces no polling loop, `RunService` step, `GetPartsInPart` occupancy scan, dwell interval, `task.delay`, timer, coroutine, result scheduler, reset callback, or objective movement.
+
+### Exact implementation and workflow files
+
+Builder implementation is limited to these paths:
+
+| File | Planned responsibility |
+| --- | --- |
+| `src/server/GameLoop/ObjectiveSuccessAdapter.luau` | Server-owned per-player objective touch observation, living/current Character filtering, current round-context capture, exact-once `SUCCEED` submission, isolation, and cleanup. |
+| `src/server/Bootstrap.server.luau` | Start and retain exactly one objective-success controller after the two merged provider controllers and pass their server-only seams. |
+| `tests/GameLoop/ObjectiveSuccessAdapter.spec.luau` | Narrow-fake qualification, authority, exact-once, stale-context, late-join, isolation, removal, and shutdown specifications. |
+
+Workflow-only records may additionally change `docs/tickets/TCK-0004.json`, the TCK-0004 builder-attempt record, independent review record, and Studio checkpoint record at their respective gates. This planning update changes only this plan and the new ticket.
+
+`RoundLifecycle.luau`, `PlayerRoundRegistry.luau`, `PlayerRoundAdapter.luau`, `ObjectivePlacement.luau`, `SafeSpawnObjectiveAdapter.luau`, all five merged suites for those modules, all client files, frozen scenarios, approved product decisions, `default.project.json`, dependencies, configuration, and project mappings are prohibited from changing. No Workspace Instance or script is saved manually in Studio.
+
+### Deterministic Lune specifications
+
+The new adapter suite uses narrow Players, Character, Humanoid, objective-signal, round-controller, and objective-controller fakes. It does not claim to reproduce Roblox physics.
+
+| ID | Test |
+| --- | --- |
+| OSA-01 | `PlayerAdded` and `PlayerRemoving` connect before existing-player enumeration; one current player receives exactly one Character retry connection and one objective touch connection. |
+| OSA-02 | A valid Part from the owner's current living Character touching the owner's current objective reads the current handle/state and submits exactly `{ type = "SUCCEED", generation = state.generation }`. |
+| OSA-03 | The adapter submits through the server-only round controller and never writes lifecycle attributes or changes the objective itself. |
+| OSA-04 | World geometry, an unrelated Part, and a Part from another player's Character do not submit or mutate either player. |
+| OSA-05 | A missing Humanoid, dead Humanoid, and Part from a stale replaced Character do not qualify; a Part from the new current living Character can qualify when the generation has not been attempted. |
+| OSA-06 | A missing or replaced objective, a missing handle/state, and a non-`ACTIVE` state reject without submission. A retained callback from the old objective cannot target the replacement. |
+| OSA-07 | Multiple body-part contacts and repeated signals submit at most once for one opaque handle/generation, including when the trusted round controller rejects the attempted event. |
+| OSA-08 | A stale handle or generation race rejected by `applyServerEvent` produces no retry, publication, or cross-player mutation for that handle/generation. |
+| OSA-09 | A genuinely new session handle or later active generation is independently eligible, while an older retained callback cannot target it with stale context. |
+| OSA-10 | Two players bind distinct objectives; each can qualify only through their own current living Character and success submission affects only the addressed player. |
+| OSA-11 | A late player is observed once without reconnecting, resubmitting, or changing any existing player's objective or round state; Character-added retry remains idempotent. |
+| OSA-12 | Removing one player invalidates and disconnects only that player's observations; repeated removal and retained signals are no-ops and the other player remains observable. |
+| OSA-13 | `stop()` disconnects all global, Character, and objective signals, invalidates every observation, is idempotent, and makes later signals inert. |
+| OSA-14 | The controller exposes only `stop`; construction creates no remote, client transition surface, polling loop, timer, delayed task, failure, reset, replay, respawn, repositioning, or presentation path. |
+
+The existing 59 deterministic TCK-0001 through TCK-0003 cases remain unchanged and must continue to pass. Static analysis proves strict types and canonical Roblox requires; Lune proves qualification filtering and orchestration through fakes, not real `Touched` physics, Character assembly, Humanoid behavior, replication, or console output.
+
+### Frozen-scenario coverage
+
+| Scenario | TCK-0004 contribution | Still blocked after this slice |
+| --- | --- | --- |
+| FP-02 | Completes the scoped server-confirmed objective-entry path: the first valid owner entry submits matching-generation success immediately and later contacts cannot replace it. | Result timing/presentation and automatic replay remain later slices. |
+| FP-06 | Adds no client result request or transition path; qualification derives only from server-owned objective and Character state. | Later presentation must remain read-only. |
+| FP-07 | Per-handle/generation observation deduplication plus the merged lifecycle reject duplicate, stale, future, and invalid-phase success attempts without mutation. | Later failure/reset observers must preserve the same generation discipline. |
+| FP-08 | Owns and removes Character/objective listeners per player without changing another player's lifecycle. | Later timer, failure, reset, and feedback listeners require their own cleanup. |
+| FP-09 | A late joiner receives one independent objective observer and can succeed without changing an existing player. | The authoritative timer remains absent. |
+
+FP-01 remains incomplete because no timer starts. FP-03 through FP-05 and FP-10 remain incomplete because this slice adds no failure observation, result/reset interval, respawn, objective repositioning, timer restart, or consecutive replay. TCK-0004 does not claim the complete first playable.
+
+### Required Studio checkpoint after implementation and review
+
+Use the exact clean implementation/review commit only after the complete `Checks.ps1` gate passes and independent review has no unresolved blocker. Record the place, Rojo/Studio connection, exact player counts and join order, server/client warnings and errors, observed identities/state, and every limitation.
+
+Single-player scenario:
+
+1. Build and synchronize the root project; confirm `ObjectiveSuccessAdapter` maps exactly once under `ServerScriptService.Server.GameLoop`, all merged modules still map once, no saved Workspace geometry exists, and no new remote or client script appears.
+2. Start one player and record the current Character, living Humanoid, owned objective identity/slot/owner/position, session lifecycle attributes, and server/client output before contact.
+3. Walk the current living Character into its own objective using ordinary movement. Confirm the server immediately publishes `RESULT`, the same generation, `SUCCESS`, and nil failure reason; record the objective and Character contact positions and confirm the objective identity/slot/owner/position do not change.
+4. Continue moving across the objective and reload the Character after success. Confirm repeated body-part/contact signals and the replacement Character cannot create another transition, generation change, objective replacement, or repository warning/error.
+5. Confirm no timer, failure, result interval, automatic reset, replay, respawn orchestration, objective repositioning, UI/result presentation, or TCK-0004 remote appears.
+
+Two-player scenario:
+
+1. Begin with Player 1 active and assigned, then add Player 2 late. Record both objective identities, associations, and `ACTIVE` generation-one states; confirm the late join changes no Player 1 value.
+2. Move Player 1 through Player 2's objective and confirm neither player changes. Then move Player 1 into Player 1's objective and confirm only Player 1 immediately becomes `RESULT`/`SUCCESS` while Player 2 remains unchanged.
+3. Move Player 2 through Player 1's objective and confirm neither state changes from the prior observation. Then move Player 2 into Player 2's objective and confirm only Player 2 becomes `RESULT`/`SUCCESS` with its generation unchanged.
+4. Remove Player 2 and wait for server-side `Players` removal. Confirm Player 2's objective and observer are gone, Player 1's objective and successful state remain unchanged, and no late callback, duplicate transition, or cleanup error appears.
+5. Confirm both clients replicated only the server-published lifecycle attributes and server-created objectives. Record explicit server and per-client warning/error counts and distinguish direct physics/replication evidence from static/Lune-only stale-context and shutdown evidence.
+
+This checkpoint supports only the TCK-0004 contributions listed above. Dead/missing-Humanoid filtering, retained callback rejection, stale handle/generation races, and idempotent full shutdown may remain deterministic adapter evidence unless a truthful read-only Studio observation is available without adding hooks or persistent objects.
+
+### Risks, controls, and rejected alternatives
+
+- **Client authority leakage:** a client contact report or result request could decide success. Control: server `Touched` observation only, current server-owned controller lookups, and no remotes/client changes.
+- **Noisy Roblox touch signals:** multiple Character parts can fire nearly together. Control: record one attempted opaque handle/generation before submission and reject every repeat for that pair.
+- **Cross-player qualification:** another Character can physically enter a visible objective. Control: require the touched Part to descend from the objective owner's current Character; test both cross-objective directions.
+- **Dead or stale Character:** a corpse or replaced Character can retain touching Parts. Control: require the current Character identity and a current Humanoid with positive Health on every callback.
+- **Stale objective/session callback:** leave, rejoin, replacement, or shutdown can retain a callable closure. Control: invalidate per-player observation records, compare current objective identity, read current handle/state at touch time, delegate final session/generation validation, and test retained signals.
+- **Late-join binding order:** the observer starts after both provider controllers and uses idempotent Player/Character setup; a Character-added retry handles an objective unavailable during the initial join callback without a delayed task.
+- **Scope creep into loop completion:** immediate success can invite timers, feedback, or replay. Control: keep result scheduling, failure, reset/replay, respawn, repositioning, and presentation explicitly deferred to Slices 5 and 6.
+
+Rejected larger alternatives:
+
+- A client `RemoteEvent` reporting objective entry is rejected because it creates an unnecessary forged-result surface.
+- `RunService` polling, continuous `GetPartsInPart`, dwell qualification, region frameworks, tags/CollectionService architecture, and a generalized physics observer are rejected because one owned objective `Touched` connection per player is sufficient for this graybox boundary.
+- Modifying `RoundLifecycle`, `PlayerRoundRegistry`, either merged provider adapter, or their tests is rejected because their existing server-only seams already provide objective identity, current session/state, and validated event submission.
+- Combining timeout/death/void failure, result duration, reset/replay, respawn, objective movement, or client feedback is rejected because it would cross the smallest independently verifiable authority boundary.
+
+Risk is medium because this slice translates real Roblox physics/Character observations into a server-authoritative terminal lifecycle mutation and owns per-player callbacks. The builder receives two complete-gate attempts. Any second failed complete gate stops implementation and requires human direction.
+
+### Rollback, exit evidence, and approval gate
+
+Rollback is a normal revert of the future TCK-0004 implementation commit. Removing the additional bootstrap start and the new adapter/spec restores the merged TCK-0003 runtime. The slice owns no saved place edits, persistence, economy, published assets, migrations, dependencies, configuration, or irreversible data.
+
+Implementation exit requires all 14 planned adapter cases, the unchanged 59-case suite, one authorized complete green `Checks.ps1` attempt, an independent review with no unresolved blocker, and the scoped single-player/two-player human Studio evidence above. Ticket advancement remains sequential: `PLAN_APPROVED → BUILDING → STATIC_PASS → CODE_REVIEW_PASS → STUDIO_PASS → HUMAN_APPROVED → MERGED`. `OBSERVING` and `CLOSED` remain undefined and are not inferred.
+
+The exact next decision is: the owner must approve this TCK-0004 behavior, three-file implementation boundary, medium-risk/two-attempt budget, deterministic evidence matrix, Studio checkpoint, and explicit deferrals before the ticket may become `PLAN_APPROVED` or implementation may begin.
 
 ## Slice 5 — Failure and reliable replay adapter
 
