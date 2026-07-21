@@ -3,7 +3,7 @@
   "title": "Pure deterministic round lifecycle",
   "type": "feature-slice",
   "risk_tier": "low",
-  "state": "CODE_REVIEW_PASS",
+  "state": "STUDIO_PASS",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0001-round-lifecycle",
