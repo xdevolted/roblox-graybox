@@ -1,0 +1,19 @@
+{
+  "id": "TCK-0003",
+  "title": "Server-owned safe spawn and per-player objective placement",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "ACCEPTANCE_TESTS_FROZEN",
+  "spec_ref": "docs/features/first-playable/specification.md",
+  "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
+  "branch": "feature/tck-0003-safe-spawn-objective",
+  "attempt_budget": 2,
+  "attempts_used": 0,
+  "authority_sensitive": true,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-07-21",
+  "human_decisions_pending": [
+    "Owner approval of the detailed TCK-0003 plan in docs/features/first-playable/plan.md is required before PLAN_APPROVED. The proposed boundary permits implementation changes only in src/shared/GameLoop/ObjectivePlacement.luau, src/server/GameLoop/SafeSpawnObjectiveAdapter.luau, src/server/Bootstrap.server.luau, tests/GameLoop/ObjectivePlacement.spec.luau, and tests/GameLoop/SafeSpawnObjectiveAdapter.spec.luau; it defers objective qualification and lifecycle success, timers/failures, reset/replay/reposition, respawn orchestration, client presentation, remotes, persistence/economy, publishing, and multi-place work; and it requires the planned static/Lune matrices, independent review, and scoped one-player/two-player Studio evidence."
+  ]
+}
