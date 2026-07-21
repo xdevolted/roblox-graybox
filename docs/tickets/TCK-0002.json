@@ -3,7 +3,7 @@
   "title": "Server-authoritative per-player round adapter",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "STUDIO_PASS",
+  "state": "HUMAN_APPROVED",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0002-server-round-adapter",
