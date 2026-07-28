@@ -1,0 +1,19 @@
+{
+  "id": "TCK-0005",
+  "title": "Server-owned failure and reliable replay adapter",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "ACCEPTANCE_TESTS_FROZEN",
+  "spec_ref": "docs/features/first-playable/specification.md",
+  "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
+  "branch": "feature/tck-0005-failure-replay-adapter",
+  "attempt_budget": 2,
+  "attempts_used": 0,
+  "authority_sensitive": true,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-07-28",
+  "human_decisions_pending": [
+    "Owner approval of the detailed TCK-0005 plan in docs/features/first-playable/plan.md is required before PLAN_APPROVED. Approval covers the server-owned timeout/death/void and result/reset/replay boundary; 20/2/1-second timing and Y = -20 void constants; seven implementation/test files; deterministic full-capacity shared-slot fallback without moving another player's objective; medium risk and two builder attempts; 31 planned cases; required FP-03, FP-04, FP-05, FP-08, and FP-10 Studio evidence; rollback; and all explicit deferrals."
+  ]
+}

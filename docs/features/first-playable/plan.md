@@ -530,10 +530,202 @@ The exact next decision is: the owner must approve this TCK-0004 behavior, three
 
 ## Slice 5 — Failure and reliable replay adapter
 
-- Behavior: server-owned timeout, death, and void observations; brief result/reset periods; safe respawn; per-player objective repositioning to a valid slot different from that player's immediately previous slot; automatic replay; cleanup on disconnect/respawn.
-- Tests: deterministic timers through injected observations, first-result wins, previous-slot exclusion, cleanup, repeated signals, and independent-player isolation.
-- Risk: medium. Attempt budget: two.
-- Exit: static/review pass, then human Studio evidence for FP-03 through FP-05, FP-08, and FP-10.
+**Ticket:** `TCK-0005` — Server-owned failure and reliable replay adapter
+
+**Plan status:** Proposed. The owner must explicitly approve this detailed slice before the ticket may advance from `ACCEPTANCE_TESTS_FROZEN` to `PLAN_APPROVED`, the implementation branch may be created, Studio may be started, or a builder attempt may be consumed.
+
+### Exact behavioral boundary
+
+TCK-0005 closes the server-owned round loop around the merged lifecycle, objective, and success adapters:
+
+- Use one server `Heartbeat` observation and `Workspace:GetServerTimeNow()` to maintain independent per-player deadlines. The proposed graybox constants are a `20`-second active round, `2`-second result interval, `1`-second minimum reset interval, and a void boundary at world `Y = -20`.
+- Disable automatic Roblox character loading for the server lifetime owned by the adapter. Load an initial Character when needed and use `Player:LoadCharacterAsync()` exactly once during each accepted reset so default respawn timing cannot race the authoritative result/reset sequence.
+- For a current `ACTIVE` session/generation with no accepted result, submit exactly one server-owned `FAIL` observation for the first observed timeout, current-Humanoid death, or current-Character pivot below the void boundary. Use `TIMEOUT`, `DEATH`, or `VOID` respectively.
+- Keep the merged lifecycle and registry as final authority. Success from TCK-0004 and all three failure sources compete only through `applyServerEvent`; the first accepted terminal event remains immutable and every later, duplicate, stale, wrong-session, or invalid-phase event is rejected without publication.
+- Observe an accepted `RESULT` from either success or failure on the next server heartbeat, retain it for the complete result interval, then submit one matching-generation `BEGIN_RESET`.
+- On accepted reset, disconnect the prior Character/Humanoid observation, reposition that player's existing objective Instance to a valid canonical slot different from that player's immediately previous slot, and request one server-owned Character reload. Preserve the objective Instance identity and owner association so the merged success observer remains valid.
+- After both the minimum reset interval has elapsed and the replacement current Character exists, submit matching-generation `FINISH_RESET` followed by exactly one `START`. The new `ACTIVE` state has a strictly greater generation, no result or failure reason, and one fresh active deadline.
+- Publish one server-written `GrayboxPhaseEndsAt` Player attribute using the same server-time basis: active timeout while `ACTIVE`, result end while `RESULT`, reset end while `RESETTING`, and `nil` after removal or shutdown. This is read-only timing substrate for Slice 6, not client feedback or authority.
+- Preserve per-player isolation. One player's terminal event, deadline, Character replacement, objective movement, replay, removal, or delayed callback cannot change another player's lifecycle, objective, Character, deadline, or attributes.
+- Remove every owned per-player Character/Humanoid listener and replay record on disconnect, invalidate retained asynchronous callbacks before clearing the timing attribute, and make repeated removal and full shutdown deterministic no-ops.
+
+This is the smallest coherent Slice 5 boundary. Failure without reset would leave a completed round stuck; reset without controlled Character loading would race Roblox's default respawn; replay without objective reassignment would violate FP-05 and FP-10; and result scheduling must observe the already-merged success path as well as new failure paths. Client presentation remains a separate Slice 6 concern.
+
+### Timing, terminal-event, and reset rules
+
+- The adapter starts after the merged round, safe-spawn/objective, and objective-success controllers. It connects `PlayerAdded`, `PlayerRemoving`, and one `RunService.Heartbeat` before enumerating current players. Provider lookups are retried on later heartbeats so callback ordering cannot create a second lifecycle or leave a late joiner unobserved.
+- Each player record is keyed by Player and tracks the current opaque session handle, generation, phase/deadline, current Character, current Humanoid/death connection, terminal-attempt token, reset token, and Character-load completion token.
+- A record arms one active deadline only for a current handle and `ACTIVE` generation. A repeated join signal, Character signal, or heartbeat for the same handle/generation reuses the deadline rather than extending it.
+- A current Humanoid's `Died` signal is the `DEATH` observation. Character replacement disconnects the old Humanoid before binding the replacement; a retained old signal is inert.
+- A heartbeat checks the current Character pivot against `Y = -20` before checking the active deadline. A below-boundary Character therefore submits `VOID`; otherwise `now >= activeDeadline` submits `TIMEOUT`. A Humanoid signal already accepted as `DEATH` wins through the lifecycle. No later source may replace the accepted reason.
+- Before any failure submission, the adapter records the attempted handle/generation. It does not retry a rejected terminal submission for that pair. A genuinely later generation is independently eligible.
+- The first heartbeat that sees `RESULT` records `resultEndsAt = now + 2` once and publishes that deadline. At `now >= resultEndsAt`, it records the reset attempt before submitting `BEGIN_RESET`.
+- An accepted `BEGIN_RESET` clears terminal lifecycle data through the existing model, publishes `resetEndsAt = now + 1`, moves the existing objective once, and starts one guarded asynchronous `LoadCharacterAsync` request.
+- A failed objective move or Character load does not falsely start the next round. The player remains in `RESETTING`, the failure is reported to server output, and owner intervention is required rather than replaying with stale state. The adapter does not add an unbounded retry loop.
+- At or after `resetEndsAt`, the adapter requires the same current session/reset token and a replacement current Character before applying `FINISH_RESET`. Only an accepted finish is followed by `START`; only an accepted start arms the new deadline. A rejection stops that sequence without a speculative retry or generation increment.
+- On stop, the adapter disconnects global and per-player connections, invalidates all tokens, clears only its timing attributes, and restores the prior `Players.CharacterAutoLoads` value. It does not stop or destroy the provider controllers, whose ownership remains in Bootstrap.
+
+### Deterministic objective reassignment
+
+Extend the engine-free `ObjectivePlacement` registry with a replay-only `reassign(playerKey, preferredIndex)` operation:
+
+1. Validate a live registry, an existing player, and an integer preferred index from 1 through 8.
+2. Exclude the player's immediately previous slot.
+3. Scan cyclically from the requested preference and choose the first unoccupied different slot when one exists.
+4. If all seven different slots are occupied, choose the first different slot in that same deterministic order even though another player's separately owned objective uses that position.
+5. Replace only the addressed player's assignment with a new frozen value and preserve every other assignment identity.
+
+Initial assignment remains unchanged: the first eight players receive distinct slots and a ninth player receives no assignment. The full-capacity replay fallback is necessary because the approved arena has exactly eight canonical slots for up to eight independently replaying players; keeping all slots globally unique while moving only one player's objective to a different slot is impossible at full occupancy. The fallback may overlap separately owned objective Parts, but it never moves or reassigns another player's target. Slice 6 remains responsible for owner-specific objective presentation.
+
+Extend `SafeSpawnObjectiveAdapter` with one server-only `repositionObjective(player)` method. It asks the registry to reassign starting at the slot after the player's current slot, moves the same objective Instance to the returned coordinates at `Y = 0.75`, updates its name and `GrayboxObjectiveSlot`, preserves `GrayboxObjectiveOwnerUserId`, and returns the new frozen assignment. Unknown, removed, unassigned, stopped, or rejected reposition requests produce no Instance or registry mutation.
+
+### Exact implementation and workflow files
+
+Builder implementation is limited to these paths:
+
+| File | Planned responsibility |
+| --- | --- |
+| `src/shared/GameLoop/ObjectivePlacement.luau` | Add deterministic previous-slot-excluding reassignment, full-capacity fallback, occupancy accounting, isolation, and cleanup. |
+| `src/server/GameLoop/SafeSpawnObjectiveAdapter.luau` | Expose one server-only in-place objective reposition operation while preserving Instance identity and ownership. |
+| `src/server/GameLoop/FailureReplayAdapter.luau` | Own authoritative timing, timeout/death/void observations, result/reset scheduling, controlled Character reload, automatic replay, timing publication, token validation, and cleanup. |
+| `src/server/Bootstrap.server.luau` | Start and retain exactly one failure/replay controller after the three merged provider controllers. |
+| `tests/GameLoop/ObjectivePlacement.spec.luau` | Extend the pure placement suite for reassignment, previous-slot exclusion, capacity fallback, and occupancy cleanup. |
+| `tests/GameLoop/SafeSpawnObjectiveAdapter.spec.luau` | Extend the narrow-fake adapter suite for in-place repositioning, metadata, rejection, and isolation. |
+| `tests/GameLoop/FailureReplayAdapter.spec.luau` | Add deterministic clock/heartbeat, Character/Humanoid, lifecycle, objective, async-load, isolation, stale-callback, and shutdown specifications. |
+
+Workflow-only records may additionally change `docs/tickets/TCK-0005.json`, the future TCK-0005 builder-attempt record, independent review record, and Studio checkpoint record at their respective gates. This planning update changes only this plan and the new ticket.
+
+`RoundLifecycle.luau`, `PlayerRoundRegistry.luau`, `PlayerRoundAdapter.luau`, `ObjectiveSuccessAdapter.luau`, their merged specifications, all client files, prototype controllers, frozen scenarios, approved product decisions, `default.project.json`, dependencies, configuration, and project mappings are prohibited from changing. No Workspace Instance or script is saved manually in Studio.
+
+### Deterministic Lune test matrix
+
+Objective placement extension:
+
+| ID | Test |
+| --- | --- |
+| OPL-R01 | Reassignment rejects an invalid preference, unknown player, and destroyed registry without changing any assignment or occupancy. |
+| OPL-R02 | A single player receives a new frozen assignment at a valid different slot; the prior frozen value remains unchanged. |
+| OPL-R03 | Reassignment scans cyclically to the first free different slot and preserves every other player's assignment identity. |
+| OPL-R04 | With all eight slots occupied, reassignment deterministically selects a different occupied slot without moving another player; the old slot becomes available. |
+| OPL-R05 | Consecutive reassignments never reuse that player's immediately previous slot, and removal releases only the addressed player's current occupancy. |
+| OPL-R06 | Initial assignment, ninth-player rejection, repeated removal, and destroy behavior remain unchanged after reassignment support. |
+
+Safe-spawn/objective adapter extension:
+
+| ID | Test |
+| --- | --- |
+| SOA-R01 | `repositionObjective` moves the same objective identity to the new assignment coordinates and updates only its name and slot metadata. |
+| SOA-R02 | Repositioning preserves owner metadata, objective size/properties, parent, and every other player's assignment and Instance identity. |
+| SOA-R03 | Repeated repositions exclude the immediately previous slot and use the registry's deterministic full-capacity fallback. |
+| SOA-R04 | Unknown, removed, unassigned, stopped, and registry-rejected requests return no assignment and perform no Instance write. |
+| SOA-R05 | The controller exposes only `getAssignment`, `getObjective`, `repositionObjective`, and `stop`; it adds no lifecycle, remote, timer, Character, or presentation authority. |
+
+Failure/replay adapter:
+
+| ID | Test |
+| --- | --- |
+| FRA-01 | Startup disables `CharacterAutoLoads`, connects player signals and one heartbeat before enumeration, initializes an existing player once, and does not alter provider state. |
+| FRA-02 | A current active handle/generation receives exactly one 20-second deadline and `GrayboxPhaseEndsAt`; repeated signals/heartbeats do not extend it. |
+| FRA-03 | A missing initial Character causes one guarded server Character load; current Character binding is idempotent and stale load completions are rejected. |
+| FRA-04 | At the exact active deadline, one matching-generation `FAIL/TIMEOUT` is submitted; early and repeated heartbeats do not submit another event. |
+| FRA-05 | The current Humanoid's first `Died` signal submits one matching-generation `FAIL/DEATH`; duplicate, old-Humanoid, and replaced-Character signals are inert. |
+| FRA-06 | A current Character below `Y = -20` submits one matching-generation `FAIL/VOID`; missing, unrelated, stale, and above-boundary Characters do not. |
+| FRA-07 | Void is checked before timeout on the same heartbeat, while an already accepted death or success remains immutable; all later failure sources are no-ops. |
+| FRA-08 | Missing/wrong handles, malformed state, non-`ACTIVE` phase, stale/future generation races, and rejected terminal submissions do not publish, retry, or affect another player. |
+| FRA-09 | The first observed accepted `RESULT`, whether success or any failure reason, receives one two-second result deadline without changing its immutable result. |
+| FRA-10 | The result deadline records and submits exactly one matching-generation `BEGIN_RESET`; duplicate heartbeats and a retained old deadline cannot begin reset again. |
+| FRA-11 | Accepted reset disconnects prior Character/Humanoid observation, repositions the same objective once to a different slot, starts one Character load, and publishes one-second reset timing. |
+| FRA-12 | Reset cannot finish before both its deadline and a replacement current Character; a failed objective move or load never falsely starts replay. |
+| FRA-13 | A ready reset applies `FINISH_RESET` then `START` exactly once, producing a clean greater generation and one new 20-second active deadline. |
+| FRA-14 | Consecutive success-then-failure and failure-then-success replays carry no result, failure reason, terminal token, reset token, Character callback, or prior deadline forward. |
+| FRA-15 | Character replacement during active/reset disconnects old death observation and cannot duplicate terminal submission, Character load, reset completion, or round start. |
+| FRA-16 | Two players maintain independent clocks, terminal outcomes, objectives, Character loads, reset progress, generations, and timing attributes. |
+| FRA-17 | A late joiner receives one independent initial Character load/deadline without changing an existing player's state, objective, or timer. |
+| FRA-18 | Removing a player in `ACTIVE`, `RESULT`, or `RESETTING` invalidates records before disconnect/attribute cleanup; retained signals, heartbeat work, and load completion are inert. |
+| FRA-19 | `stop()` disconnects all owned signals, clears timing attributes, restores the prior autoload setting, is idempotent, and makes all retained callbacks inert. |
+| FRA-20 | The controller exposes only `stop`; construction creates no remote, client transition path, UI, polling coroutine, persistence, economy, publishing, or multi-place surface. |
+
+The existing 73 deterministic cases remain present. Static analysis must prove strict types and canonical Roblox requires. Lune proves deterministic orchestration through narrow fakes; it does not claim real scheduler cadence, physics, `Humanoid.Died`, Character loading, spawn placement, replication, or console behavior.
+
+### Frozen-scenario coverage
+
+| Scenario | TCK-0005 contribution | Still blocked after this slice |
+| --- | --- | --- |
+| FP-01 | Adds one authoritative active timer and controlled initial Character loading on the merged guarded spawn/objective foundation. | Primitive countdown presentation remains Slice 6. |
+| FP-02 | Detects the merged success result promptly, preserves it for the result interval, and replays without allowing later failure to replace it. | Primitive result presentation remains Slice 6. |
+| FP-03 | Completes server-owned timeout failure and first-result immutability. | Primitive countdown/result presentation remains Slice 6. |
+| FP-04 | Completes current-Character death and configured void-boundary failure with duplicate/stale rejection. | Primitive result presentation remains Slice 6. |
+| FP-05 | Completes result/reset timing, prior-state clearing, guarded respawn, different valid objective placement, fresh timer, and exact-once greater-generation replay. | Primitive result/reset countdown presentation remains Slice 6. |
+| FP-06 | Adds no client outcome, timer, reset, generation, Character-load, or objective-movement request path. | Later presentation must remain read-only. |
+| FP-07 | Every new observation and deferred action is session/generation/token scoped and delegates final transition validation to the merged lifecycle. | No server behavior remains blocked. |
+| FP-08 | Cleans failure, timer, Character, and replay ownership per player without changing another player. | Slice 6 must clean its own client presentation listeners. |
+| FP-09 | Adds an independent initial timer and controlled Character load for a late joiner without changing existing rounds. | Primitive feedback and owner-specific objective presentation remain Slice 6. |
+| FP-10 | Completes clean consecutive success/failure replay with new generation, no carried result or stale timer, and no immediately repeated objective slot. | Primitive consecutive-round feedback remains Slice 6. |
+
+TCK-0005 completes the server/runtime portions of FP-03, FP-04, FP-05, FP-08, and FP-10, but it does not claim the complete player-facing first playable before Slice 6 feedback and owner judgment.
+
+### Required Studio checkpoint after implementation and review
+
+Use one exact clean implementation/review commit only after the complete `Checks.ps1` gate passes and independent review has no unresolved blocker. Record the place, Rojo/Studio connection, server/client player counts and join order, configured constants, relevant Player attributes, Character/objective identities and positions, every server/client warning or error, and all remaining limitations.
+
+Single-player failure and replay evidence:
+
+1. Build and synchronize the root project. Confirm `FailureReplayAdapter` maps exactly once, all merged modules still map once, one heartbeat source is active, `CharacterAutoLoads` is server-controlled, no saved Workspace content changed, and no remote or new client script exists.
+2. For FP-03, start an active round, record generation/objective/deadline, avoid the objective and void, and observe the exact timeout boundary. Confirm one immutable `RESULT`/`FAILURE`/`TIMEOUT`, unchanged generation, no duplicate terminal transition, and no late success/death replacement.
+3. Observe the complete result and reset sequence. Confirm the result persists for two seconds; `RESETTING` clears terminal data; the same owned objective moves to a valid different slot; exactly one replacement Character appears at the guarded start; and exactly one clean greater-generation `ACTIVE` round begins with a fresh deadline.
+4. For FP-04, complete one active round by Character death and another by falling below `Y = -20`. For each, confirm the correct immutable `DEATH` or `VOID` reason, duplicate/late signals do not transition again, and automatic replay completes as above.
+5. For FP-10, perform a success round followed by a failure round, then a failure round followed by a success round. After every reset, record generation, result/failure fields, deadline, Character identity/spawn, objective identity/slot/position, and confirm no carried result, duplicate bootstrap, stale timer, or immediately reused slot.
+6. During success and failure result intervals, continue contact/movement and attempt a normal character reset where available. Confirm first-result immutability and that only the adapter's accepted reset sequence creates the next round.
+
+Two-player isolation and disconnect evidence:
+
+1. Start Player 1, add Player 2 late, and record independent generations, deadlines, Characters, objectives, and attributes. Let one player timeout while the other remains active; confirm only the addressed player enters result/reset/replay.
+2. Cause Player 1 death while Player 2 reaches success. Confirm each retains its own first result/reason and both reset independently without moving the other player's objective or Character.
+3. For FP-08, remove a player once during `ACTIVE` and in a separate run during `RESULT` or `RESETTING`. Confirm that player's objective/provider cleanup and TCK-0005 timing/listener/load cleanup complete without a late transition, replay, warning, or stuck record; the remaining player's lifecycle and timer do not change.
+4. Exercise the eight-player capacity edge or a deterministic server-side Studio inspection when practical. Confirm a replay always changes the addressed player's immediately previous slot; if every other slot is occupied, only that player's objective uses the documented shared-position fallback and no other objective moves.
+5. Stop play mode and record explicit server and per-client warning/error counts. Distinguish direct Studio evidence from Lune-only stale-token, rejected-race, load-failure, shutdown, and full-capacity assertions.
+
+The checkpoint must record separate results for FP-03, FP-04, FP-05, FP-08, and FP-10. Passing deterministic tests is not a substitute for observing real timer cadence, death, void height, `LoadCharacterAsync`, guarded spawn, objective movement, replication, multiplayer isolation, and console output.
+
+### Risks, controls, and rejected alternatives
+
+- **Terminal races:** success, death, void, and timeout can occur close together. Control: record one handle/generation attempt before submission and let the lifecycle accept only the first result.
+- **Stale deferred work:** heartbeat, Humanoid, Character, or async load callbacks can outlive a generation or player. Control: validate Player record identity, session handle, generation, phase, and reset/load token at every callback boundary.
+- **Default respawn races:** Roblox automatic respawn could replace a Character during the result interval. Control: own and restore `CharacterAutoLoads`, and request Character loading only for initial spawn when absent or accepted reset.
+- **Replay partial failure:** starting a round after objective movement or Character load failed would carry stale world state. Control: remain `RESETTING`, report the failure, and never submit finish/start without all required reset conditions.
+- **Objective-listener breakage:** replacing the objective would strand TCK-0004's retained touch connection. Control: move the same Instance and update assignment/metadata in place.
+- **Full-capacity placement:** eight occupied slots leave no unique different destination. Control: deterministic different-slot overlap for only the replaying player's separately owned objective; no other assignment or Instance moves.
+- **Timer drift or duplication:** per-player delayed tasks can accumulate. Control: one server heartbeat, server-time deadlines, one record per player, and tokenized exact-once phase actions.
+- **Partial attribute replication:** lifecycle and timing attributes may be observed between writes. This affects only later presentation; Slice 6 must tolerate transient refreshes and never treat attributes as authority.
+- **Scope pressure into presentation:** timing attributes can invite UI work. Control: no client file changes, labels, countdown rendering, owner filtering, input changes, or playability claim in this slice.
+
+Rejected larger or weaker alternatives:
+
+- Client-reported timeout, death, void, reset completion, Character readiness, or objective movement is rejected because outcomes and replay remain server-authoritative.
+- Independent `task.delay` chains per phase are rejected because canceled/replaced callbacks are harder to audit than one heartbeat and explicit tokens.
+- Roblox default respawn timing is rejected because it can race the immutable result interval and cannot prove exact-once reset/replay.
+- Destroying and recreating an objective is rejected because it would require widening TCK-0004 to rebind touch observation.
+- Moving another player's objective to preserve global slot uniqueness is rejected because it violates independent lifecycle ownership.
+- Adding slots, random placement, a scheduler framework, service container, generalized signal layer, retry service, remote, or state-machine replacement is rejected as unnecessary for the frozen boundary.
+
+Risk is medium because this slice owns authoritative terminal observations, time, Character reload, objective movement, and deferred lifecycle transitions. The builder receives two complete-gate attempts. Planning validation and CI do not consume an attempt. Any second failed builder complete gate stops implementation and requires human direction; scope must not expand to compensate.
+
+### Explicit deferrals
+
+- All Slice 6 client countdown, success/failure, result interval, reset countdown, objective-owner filtering/labels, and final default-movement presentation.
+- Final UI, art, animation, audio, obstacles, tuning beyond the four approved prototype constants, analytics, and playtest instrumentation.
+- Any client-to-server gameplay remote or client authority over outcomes, generation, timing, Character loading, reset, or objective placement.
+- Changes to the pure lifecycle/registry, merged success qualification, frozen acceptance tests, approved product decisions, dependencies, configuration, project mapping, or architecture.
+- Persistence, progression, economy, monetization, publishing, production release, migrations, multiple places, frameworks, unattended Studio automation, evidence manifests, and Phase 2 work.
+- Slice 6, the first-playable stopping gate, `OBSERVING`, and `CLOSED`; none begins or is inferred from TCK-0005 planning or implementation.
+
+### Rollback, exit evidence, and approval gate
+
+Rollback is a normal revert of the future TCK-0005 implementation commit. Removing its bootstrap start and new adapter/spec, then reverting the narrow placement and safe-spawn extensions/specs, restores the merged TCK-0004 runtime. Adapter shutdown restores the prior Character-autoload setting and clears runtime-only timing attributes. The slice owns no saved place edits, persistence, economy, published assets, migrations, dependencies, configuration, or irreversible data.
+
+Implementation exit requires all 31 planned new/extended cases, the unchanged 73 existing cases, one authorized complete green `Checks.ps1` builder attempt, an independent review with no unresolved blocker, and the scoped human Studio evidence above for FP-03, FP-04, FP-05, FP-08, and FP-10. Ticket advancement remains sequential: `PLAN_APPROVED → BUILDING → STATIC_PASS → CODE_REVIEW_PASS → STUDIO_PASS → HUMAN_APPROVED → MERGED`. `OBSERVING` and `CLOSED` remain undefined and are not inferred.
+
+The exact next decision is: the owner must approve this TCK-0005 behavior; `20`/`2`/`1`-second timing and `Y = -20` void constants; seven-file implementation boundary; deterministic full-capacity slot fallback; medium-risk/two-attempt budget; 31-case matrix; Studio checkpoint; rollback; and explicit deferrals before the ticket may become `PLAN_APPROVED`, implementation may begin, or a builder attempt may be consumed.
 
 ## Slice 6 — Primitive client feedback
 
