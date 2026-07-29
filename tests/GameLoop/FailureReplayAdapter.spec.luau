@@ -136,12 +136,21 @@ local function newRoundController()
         local nextState, accepted, rejection = RoundLifecycle.transition(context.state, event)
         if accepted then
             context.state = nextState
+            if event.type == "START" and controller.startGenerationOverride ~= nil then
+                context.state = table.freeze({
+                    phase = "ACTIVE",
+                    generation = controller.startGenerationOverride,
+                    result = nil,
+                    failureReason = nil,
+                })
+            end
         end
         return accepted, rejection
     end
 
     controller.contexts = contexts
     controller.events = events
+    controller.startGenerationOverride = nil
     return controller
 end
 
@@ -205,6 +214,9 @@ local function newFixture(existing: { any })
             return character.humanoid
         end,
         getCharacterY = function(character)
+            if character.failY then
+                error("injected character-height failure")
+            end
             return character.y
         end,
         loadCharacterAsync = function(player, complete)
@@ -639,6 +651,23 @@ return {
                     "heartbeat must not restart"
                 )
                 fixture.controller.stop()
+
+                local authoritativePlayer = newPlayer("AuthoritativeGeneration")
+                local authoritativeFixture = newFixture({ authoritativePlayer })
+                authoritativeFixture.round.startGenerationOverride = 7
+                succeed(authoritativeFixture, authoritativePlayer)
+                finishReplay(authoritativeFixture, authoritativePlayer)
+                assert(
+                    authoritativeFixture.round.contexts[authoritativePlayer].state.generation == 7,
+                    "adapter must retain the authority's post-START generation"
+                )
+                local authoritativeDeadline = authoritativePlayer.attributes.GrayboxPhaseEndsAt
+                authoritativeFixture.tick(0)
+                assert(
+                    authoritativePlayer.attributes.GrayboxPhaseEndsAt == authoritativeDeadline,
+                    "authoritative readback must not re-arm the deadline"
+                )
+                authoritativeFixture.controller.stop()
             end,
         },
         {
@@ -726,6 +755,20 @@ return {
                 assert(#fixture.loads == 1 and fixture.loads[1].player == first, "only first loads")
                 assert(second.attributes.GrayboxPhaseEndsAt == 120, "second timer must remain")
                 fixture.controller.stop()
+
+                local faulty = newPlayer("FaultyUpdate")
+                local healthy = newPlayer("HealthyUpdate")
+                local isolatedFixture = newFixture({ faulty, healthy })
+                isolatedFixture.tick(0)
+                faulty.Character.failY = true
+                healthy.Character.y = -21
+                isolatedFixture.tick(0)
+                assert(#isolatedFixture.failures == 1, "faulty update must be reported")
+                assert(
+                    isolatedFixture.round.contexts[healthy].state.failureReason == "VOID",
+                    "faulty player must not skip a healthy player's tick"
+                )
+                isolatedFixture.controller.stop()
             end,
         },
         {
@@ -737,6 +780,8 @@ return {
                 local firstDeadline = first.attributes.GrayboxPhaseEndsAt
                 local late = newPlayer("LateSecond", false)
                 fixture.addPlayer(late, 2)
+                -- Deliberately repeat the signal; the exact-once load assertion below
+                -- proves late-join initialization is idempotent.
                 fixture.players.PlayerAdded:Fire(late)
                 fixture.tick(3)
                 assert(late.attributes.GrayboxPhaseEndsAt == 123, "late timer must start")

@@ -118,6 +118,8 @@ function ObjectivePlacement.new(): Registry
         end
 
         if selectedIndex == nil then
+            -- At full capacity, overlap is intentional so one player's replay can
+            -- move without changing another assignment. Counts keep release exact.
             for offset = 0, #slots - 1 do
                 local index = ((preferredIndex - 1 + offset) % #slots) + 1
                 if index ~= previous.slotId then

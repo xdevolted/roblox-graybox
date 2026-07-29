@@ -541,6 +541,8 @@ return {
                 local controller = start({ player }, nil)
                 local originalAssignment = controller.getAssignment(player)
                 local objective = controller.getObjective(player)
+                assert(originalAssignment ~= nil, "original assignment must exist")
+                assert(objective ~= nil, "original objective must exist")
                 local replay, rejection = controller.repositionObjective(player)
                 assert(replay ~= nil and rejection == nil, "reposition must succeed")
                 assert(replay.slotId == 2, "reposition must advance to next free slot")
@@ -616,10 +618,9 @@ return {
                     "fallback must retain objective identity"
                 )
                 for index = 2, 8 do
-                    assert(
-                        controller.getAssignment(playersList[index]).slotId == index,
-                        "fallback must not move another assignment"
-                    )
+                    local assignment = controller.getAssignment(playersList[index])
+                    assert(assignment ~= nil, `player {index} assignment must remain`)
+                    assert(assignment.slotId == index, "fallback must not move another assignment")
                 end
                 controller.stop()
             end,

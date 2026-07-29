@@ -8,7 +8,7 @@
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0005-failure-replay-adapter",
   "attempt_budget": 2,
-  "attempts_used": 1,
+  "attempts_used": 2,
   "authority_sensitive": true,
   "touches_persistence": false,
   "touches_economy": false,

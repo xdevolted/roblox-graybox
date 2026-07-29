@@ -129,6 +129,8 @@ function FailureReplayAdapter.start(
 
     local observations: { [any]: Observation } = {}
     local stopped = false
+    -- This adapter is the sole runtime owner of CharacterAutoLoads while active.
+    -- Other systems must not change the global property before stop restores it.
     local previousCharacterAutoLoads = players.CharacterAutoLoads
     players.CharacterAutoLoads = false
 
@@ -402,7 +404,18 @@ function FailureReplayAdapter.start(
             return
         end
 
-        setGeneration(observation, handle, generation + 1)
+        local startedState = roundController.getState(player)
+        if
+            startedState == nil
+            or startedState.phase ~= "ACTIVE"
+            or not isGeneration(startedState.generation)
+            or startedState.generation <= generation
+        then
+            reportFailure(`post-START state was invalid for {player.Name}`)
+            return
+        end
+
+        setGeneration(observation, handle, startedState.generation)
         observation.activeEndsAt = currentTime + ROUND_DURATION_SECONDS
         writePhaseEndsAt(player, observation, observation.activeEndsAt)
     end
@@ -559,7 +572,10 @@ function FailureReplayAdapter.start(
         players.PlayerRemoving:Connect(removePlayer),
         heartbeat:Connect(function()
             for player, observation in observations do
-                updatePlayer(player, observation)
+                local succeeded = pcall(updatePlayer, player, observation)
+                if not succeeded then
+                    reportFailure(`update failed for {player.Name}`)
+                end
             end
         end),
     }
