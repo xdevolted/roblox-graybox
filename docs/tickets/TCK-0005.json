@@ -1,0 +1,17 @@
+{
+  "id": "TCK-0005",
+  "title": "Server-owned failure and reliable replay adapter",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "PLAN_APPROVED",
+  "spec_ref": "docs/features/first-playable/specification.md",
+  "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
+  "branch": "feature/tck-0005-failure-replay-adapter",
+  "attempt_budget": 2,
+  "attempts_used": 0,
+  "authority_sensitive": true,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-07-28",
+  "human_decisions_pending": []
+}
