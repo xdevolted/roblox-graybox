@@ -77,6 +77,7 @@ local function newInstanceFactory()
         local instance: any = {
             Name = spec.name,
             spec = spec,
+            position = if spec.position == nil then nil else table.clone(spec.position),
             parent = parent,
             children = {},
             attributes = {},
@@ -133,6 +134,15 @@ local function start(existing: { any }, onEnumerate: (() -> ())?)
         registryFactory = ObjectivePlacement.new,
         preferredIndex = function(player)
             return player.preferredIndex
+        end,
+        moveObjective = function(objective, assignment)
+            objective.Name = `Objective_{assignment.slotId}`
+            objective.position = {
+                x = assignment.x,
+                y = 0.75,
+                z = assignment.z,
+            }
+            objective:SetAttribute("GrayboxObjectiveSlot", assignment.slotId)
         end,
     })
     return controller, players, signalLog, world, records
@@ -494,10 +504,13 @@ return {
                     keyCount += 1
                 end
                 assert(
-                    keys.getAssignment and keys.getObjective and keys.stop,
+                    keys.getAssignment
+                        and keys.getObjective
+                        and keys.repositionObjective
+                        and keys.stop,
                     "approved controller seams must exist"
                 )
-                assert(keyCount == 3, "controller must expose only three approved seams")
+                assert(keyCount == 4, "controller must expose only four approved seams")
                 assert(
                     (controller :: any).applyServerEvent == nil,
                     "controller must expose no lifecycle transition"
@@ -518,6 +531,154 @@ return {
                         "adapter must create no remotes"
                     )
                 end
+                controller.stop()
+            end,
+        },
+        {
+            name = "repositions the same objective and updates only replay placement metadata",
+            run = function()
+                local player = newPlayer(110, 1)
+                local controller = start({ player }, nil)
+                local originalAssignment = controller.getAssignment(player)
+                local objective = controller.getObjective(player)
+                local replay, rejection = controller.repositionObjective(player)
+                assert(replay ~= nil and rejection == nil, "reposition must succeed")
+                assert(replay.slotId == 2, "reposition must advance to next free slot")
+                assert(replay.slotId ~= originalAssignment.slotId, "reposition must move")
+                assert(controller.getObjective(player) == objective, "identity must be preserved")
+                assert(controller.getAssignment(player) == replay, "assignment must update")
+                assert(objective.Name == "Objective_2", "objective name must update")
+                assert(
+                    objective.position.x == 0
+                        and objective.position.y == 0.75
+                        and objective.position.z == -30,
+                    "objective position must match replay assignment"
+                )
+                assert(
+                    objective.attributes.GrayboxObjectiveOwnerUserId == 110,
+                    "owner metadata must remain unchanged"
+                )
+                assert(objective.attributes.GrayboxObjectiveSlot == 2, "slot metadata must update")
+                controller.stop()
+            end,
+        },
+        {
+            name = "repositions only the addressed player's objective",
+            run = function()
+                local first = newPlayer(111, 1)
+                local second = newPlayer(112, 2)
+                local controller = start({ first, second }, nil)
+                local firstObjective = controller.getObjective(first)
+                local secondObjective = controller.getObjective(second)
+                local secondAssignment = controller.getAssignment(second)
+                local replay = controller.repositionObjective(first)
+                assert(replay ~= nil and replay.slotId == 3, "occupied slot must be skipped")
+                assert(
+                    controller.getObjective(first) == firstObjective,
+                    "first identity must remain"
+                )
+                assert(
+                    controller.getObjective(second) == secondObjective,
+                    "other objective identity must remain"
+                )
+                assert(
+                    controller.getAssignment(second) == secondAssignment,
+                    "other assignment must remain"
+                )
+                assert(
+                    secondObjective.attributes.GrayboxObjectiveSlot == 2,
+                    "other metadata must remain"
+                )
+                controller.stop()
+            end,
+        },
+        {
+            name = "repositions consecutively and uses full-capacity fallback",
+            run = function()
+                local playersList = {}
+                for index = 1, 8 do
+                    playersList[index] = newPlayer(300 + index, index)
+                end
+                local controller = start(playersList, nil)
+                local firstObjective = controller.getObjective(playersList[1])
+                local firstReplay = controller.repositionObjective(playersList[1])
+                assert(
+                    firstReplay ~= nil and firstReplay.slotId == 2,
+                    "full-capacity replay must use next occupied slot"
+                )
+                local secondReplay = controller.repositionObjective(playersList[1])
+                assert(
+                    secondReplay ~= nil and secondReplay.slotId ~= firstReplay.slotId,
+                    "consecutive replay must exclude previous slot"
+                )
+                assert(
+                    controller.getObjective(playersList[1]) == firstObjective,
+                    "fallback must retain objective identity"
+                )
+                for index = 2, 8 do
+                    assert(
+                        controller.getAssignment(playersList[index]).slotId == index,
+                        "fallback must not move another assignment"
+                    )
+                end
+                controller.stop()
+            end,
+        },
+        {
+            name = "rejects unknown removed and stopped reposition requests without writes",
+            run = function()
+                local player = newPlayer(113, 1)
+                local unknown = newPlayer(114, 2)
+                local controller, players = start({ player }, nil)
+                local objective = controller.getObjective(player)
+                local unknownReplay, unknownRejection = controller.repositionObjective(unknown)
+                assert(
+                    unknownReplay == nil and unknownRejection == "UNKNOWN_PLAYER",
+                    "unknown reposition must reject"
+                )
+                assert(objective.attributes.GrayboxObjectiveSlot == 1, "unknown must not write")
+
+                players.PlayerRemoving:Fire(player)
+                local removedReplay, removedRejection = controller.repositionObjective(player)
+                assert(
+                    removedReplay == nil and removedRejection == "UNKNOWN_PLAYER",
+                    "removed reposition must reject"
+                )
+                controller.stop()
+                local stoppedReplay, stoppedRejection = controller.repositionObjective(player)
+                assert(
+                    stoppedReplay == nil and stoppedRejection == "DESTROYED",
+                    "stopped reposition must reject"
+                )
+            end,
+        },
+        {
+            name = "adds only the approved server replay seam",
+            run = function()
+                local controller, players = start({}, nil)
+                local keys = {}
+                local count = 0
+                for key in controller do
+                    keys[key] = true
+                    count += 1
+                end
+                assert(
+                    keys.getAssignment
+                        and keys.getObjective
+                        and keys.repositionObjective
+                        and keys.stop,
+                    "all approved seams must exist"
+                )
+                assert(count == 4, "no extra controller seam is permitted")
+                assert(
+                    (controller :: any).applyServerEvent == nil
+                        and (controller :: any).startTimer == nil,
+                    "objective controller must expose no lifecycle or timer authority"
+                )
+                assert(
+                    (players :: any).RemoteEvent == nil and (players :: any).RemoteFunction == nil,
+                    "replay seam must introduce no remote"
+                )
                 controller.stop()
             end,
         },
