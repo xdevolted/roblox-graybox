@@ -729,10 +729,316 @@ The exact next decision is: the owner must approve this TCK-0005 behavior; `20`/
 
 ## Slice 6 — Primitive client feedback
 
-- Behavior: present replicated countdown, owner-specific objective visibility/association, success/failure, result interval, and reset countdown without client outcome authority.
-- Tests: pure presentation mapping where useful; no claim that headless tests validate rendering or playability.
-- Risk: medium because it crosses replication and presentation boundaries. Attempt budget: two.
-- Exit: static/review pass, then human Studio evidence for visibility, duplicate bootstrap prevention, and late-join behavior in FP-09.
+**Ticket:** `TCK-0006` — Primitive client round feedback
+
+**Plan status:** Proposed. The owner must explicitly approve this detailed slice before the
+ticket may advance from `ACCEPTANCE_TESTS_FROZEN` to `PLAN_APPROVED`, an implementation
+branch may be created, Studio may be started, or a builder attempt may be consumed.
+
+### Exact behavioral boundary
+
+TCK-0006 presents the already-merged server-owned loop without adding another gameplay
+system:
+
+- Read only the local Player's replicated `GrayboxRoundPhase`,
+  `GrayboxRoundGeneration`, `GrayboxRoundResult`, `GrayboxRoundFailureReason`, and
+  `GrayboxPhaseEndsAt` attributes. Read `Workspace:GetServerTimeNow()` only to render
+  the remaining time against the server-published deadline.
+- Create one primitive, text-only `ScreenGui` under the local `PlayerGui`. It persists
+  across Character replacement and shows the active countdown, immutable result and
+  result interval, reset countdown, and next clean active round.
+- During `ACTIVE`, show the round generation, an instruction to reach the visible
+  glowing objective, and `ceil(GrayboxPhaseEndsAt - serverNow)` clamped to `0..20`.
+- During `RESULT`, show unambiguous `SUCCESS` or `FAILURE` text. Failure additionally
+  maps `TIMEOUT`, `DEATH`, and `VOID` to plain-language reasons. Continue showing the
+  result while rendering the next-round interval clamped to `0..2`.
+- During `RESETTING`, replace terminal feedback with `RESETTING` and a next-round
+  countdown clamped to `0..1`. A following `ACTIVE` generation replaces all prior
+  result/reset text rather than layering another temporary message.
+- Treat `WAITING`, missing phase/generation/result data, invalid types, unknown enum
+  values, and contradictory multi-attribute snapshots as `PREPARING ROUND...`. A valid
+  replicated `FAILURE` whose reason has not arrived yet may show generic `FAILURE`;
+  otherwise never invent a result, deadline, generation, or objective association from
+  a partial snapshot.
+- Discover the replicated `Workspace.GrayboxArena.Objectives` hierarchy even when it
+  arrives after client bootstrap. Hide unresolved and non-owned objective Parts on
+  that client with `LocalTransparencyModifier`; show an objective only when exactly one
+  current Part has a valid `GrayboxObjectiveOwnerUserId` equal to
+  `LocalPlayer.UserId`. While zero or multiple owned candidates are present, hide all
+  candidates and show `OBJECTIVE SYNCING...` rather than presenting an ambiguous
+  target.
+- Re-evaluate ownership when objectives or their owner attributes replicate, are
+  removed, or are replaced. In-place objective movement from TCK-0005 needs no new
+  binding and remains visible only to its owner.
+- Leave `InputController`, ordinary Roblox keyboard/gamepad/touch movement, the default
+  PlayerModule, camera behavior, Humanoid movement, and jump behavior unchanged. This
+  slice introduces no `UserInputService`, `ContextActionService`, movement controller,
+  custom character controller, or input remote.
+
+This is the smallest coherent presentation boundary. The merged server already owns
+phase, generation, result, timing, Character loading, objective identity and placement,
+and replay. The client needs only one pure mapper plus one thin Roblox presentation
+controller. It does not need a remote, server edit, new movement layer, phase scheduler,
+or state machine.
+
+### Replicated presentation contract
+
+The engine-free presentation mapper accepts one freshly read snapshot plus the current
+server-time estimate and returns a frozen view model. It has no clock, Roblox object,
+listener, callback, or mutation of its own.
+
+| Replicated snapshot | Primitive presentation | Countdown rule |
+| --- | --- | --- |
+| Coherent `ACTIVE`, generation `g`, exactly one owned objective | `ROUND g` / `REACH YOUR GLOWING ZONE` | Ceiling of the deadline delta, clamped to `0..20` |
+| Coherent `ACTIVE` without exactly one owned objective | `ROUND g` / `OBJECTIVE SYNCING...` | Same active countdown when the deadline is valid |
+| `RESULT` with `SUCCESS` | `SUCCESS` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
+| `RESULT` with `FAILURE/TIMEOUT` | `FAILURE — TIMEOUT` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
+| `RESULT` with `FAILURE/DEATH` | `FAILURE — DEATH` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
+| `RESULT` with `FAILURE/VOID` | `FAILURE — FELL` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
+| `RESULT` with replicated `FAILURE` but a temporarily missing reason | Generic `FAILURE` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
+| Coherent `RESETTING` | `RESETTING` / `ROUND STARTS IN n` | Deadline delta clamped to `0..1` |
+| Missing, malformed, unknown, or cross-phase values | `PREPARING ROUND...` | No fabricated countdown |
+
+The mapper accepts only nonnegative integer generations, with a positive generation
+required for `ACTIVE`, `RESULT`, or `RESETTING`; finite numeric deadlines and current
+times; approved phase/result/reason strings; and combinations permitted by the frozen
+lifecycle. An absent, expired, or implausible deadline never changes phase or causes an
+outcome; it yields either zero or no countdown according to the validated mapping.
+Phase-specific clamps prevent a stale active deadline from rendering a long result/reset
+interval while the later timing attribute is still replicating.
+
+Every relevant attribute-change signal triggers a deferred full reread, and the render
+step refreshes only time-dependent text from another full snapshot. Multiple signals
+from one server publication may therefore cause harmless repeated renders, but cannot
+append feedback, start a local timer chain, or mutate authoritative state. The client
+never preserves a terminal view across a server-published phase/generation change.
+
+### Client authority, bootstrap, and cleanup
+
+- `DebugHudController.start()` gains one optional narrow dependency seam and returns a
+  frozen controller exposing only `stop()`. Production defaults to `Players.LocalPlayer`,
+  `Workspace`, `RunService`, Roblox Instances, and the pure mapper.
+- A module-local active-controller guard makes repeated `start()` calls return the same
+  controller without creating another `ScreenGui`, frame listener, attribute listener,
+  objective listener, or render loop. After `stop()`, one later `start()` may create one
+  fresh controller.
+- The existing `Bootstrap.client.luau` remains the single mapped bootstrap and continues
+  to call the debug controller once. The existing no-op `InputController` remains
+  unchanged; it does not become a movement system.
+- The controller writes no Player attribute, never calls a remote, never reports a
+  result, and never requests a lifecycle transition. A displayed countdown reaching
+  zero only renders zero/preparing text until the server publishes the next phase.
+- The controller owns every LocalPlayer attribute, render-step, Workspace/arena/folder,
+  objective child, and objective-owner-attribute connection it creates. Unbinding an
+  objective disconnects its listener and restores the pre-controller
+  `LocalTransparencyModifier` when the Part still exists.
+- The controller intentionally owns no Character listener, Character reference,
+  Humanoid reference, input binding, or Character-local GUI. `ScreenGui.ResetOnSpawn`
+  is false, so Character replacement cannot duplicate presentation and there is no
+  stale Character-owned feedback to clean up.
+- `stop()` first marks the controller inactive, then disconnects all owned listeners,
+  restores all surviving objective Parts' prior local transparency, destroys the owned
+  primitive GUI, clears cached view/objective state, releases the singleton guard, and
+  is idempotent. Retained fake or engine callbacks after stop are inert.
+
+### Exact implementation and workflow files
+
+Builder implementation is limited to these paths:
+
+| File | Planned responsibility |
+| --- | --- |
+| `src/client/Prototype/PrimitiveFeedbackModel.luau` | Engine-free snapshot validation, phase/result/reason text mapping, phase-specific countdown calculation, objective-ready mapping, and frozen view models. |
+| `src/client/Prototype/DebugHudController.luau` | One primitive ScreenGui, replicated-attribute observation, server-time rendering, owner-only objective visibility, late hierarchy binding, duplicate-start guard, and cleanup. |
+| `tests/Prototype/PrimitiveFeedbackModel.spec.luau` | Deterministic mapping, countdown, partial-snapshot, transition, and owner-association specifications. |
+| `tests/PrototypeControllers.spec.luau` | Extend the narrow-fake client-controller suite for bootstrap idempotence, listener/objective cleanup, isolation, and no-authority behavior. |
+
+Workflow records may additionally change `docs/tickets/TCK-0006.json`, the future
+TCK-0006 builder-attempt record, independent review record, and Studio checkpoint
+record at their respective gates. This planning update changes only this plan and the
+new ticket.
+
+`Bootstrap.client.luau`, `InputController.luau`, all server/shared gameplay modules,
+all merged gameplay specifications, frozen scenarios, approved product decisions,
+`default.project.json`, dependencies, configuration, and project mappings are
+prohibited from changing. No Workspace or GUI Instance is saved manually in Studio.
+
+### Deterministic Lune test matrix
+
+Pure presentation mapping:
+
+| ID | Test |
+| --- | --- |
+| PFM-01 | `WAITING`, missing phase, unknown phase, malformed generation, and cross-phase result data produce only the preparing view and no invented countdown. |
+| PFM-02 | A coherent active snapshot maps the exact round/instruction text and ceilings a finite deadline delta deterministically. |
+| PFM-03 | Active time is clamped to `0..20`; an expired deadline never triggers a local result or transition. |
+| PFM-04 | Active presentation reports objective syncing unless exactly one valid owner association is ready. |
+| PFM-05 | Success maps to unambiguous success text, no failure reason, and a `0..2` next-round countdown. |
+| PFM-06 | Each approved failure reason maps to distinct plain-language failure text without changing the immutable replicated result. |
+| PFM-07 | A replicated failure with a transiently absent reason remains generic failure; malformed or contradictory result combinations fall back safely. |
+| PFM-08 | Resetting clears terminal text and maps only the `0..1` reset/next-round countdown. |
+| PFM-09 | Missing, nonnumeric, NaN, infinite, expired, and implausibly distant deadlines cannot render an out-of-range countdown or mutate the phase. |
+| PFM-10 | Active → success/failure result → resetting → greater-generation active sequences carry no prior result, reason, or countdown text forward. |
+| PFM-11 | Repeated identical snapshots and times return equal deterministic frozen view models without accumulating temporary messages. |
+| PFM-12 | Objective ownership is ready only for exactly one candidate with a valid owner ID equal to the local user; unresolved, foreign, malformed, and duplicate-owned candidates are not presented as the target. |
+
+Thin Roblox presentation controller using narrow fakes:
+
+| ID | Test |
+| --- | --- |
+| DHC-01 | First start creates exactly one GUI, performs one full snapshot read/render, and connects exactly the approved attribute, frame, and hierarchy signals. |
+| DHC-02 | Repeated start returns the active controller and creates no duplicate GUI, listener, objective binding, or render loop. |
+| DHC-03 | Attribute bursts defer a full reread; repeated callbacks may rerender but cannot append a second result/reset message or retain stale generation text. |
+| DHC-04 | Render ticks update only mapped time text, and reaching zero performs no SetAttribute, remote call, lifecycle request, Character load, objective write, or local phase transition. |
+| DHC-05 | Existing arena/objective hierarchy binds once; one locally owned objective is shown while foreign and unresolved objectives are locally hidden. |
+| DHC-06 | Late arena, folder, objective, and owner-attribute replication converges to the same owner-specific visibility without a bootstrap retry or duplicate binding. |
+| DHC-07 | Objective removal/replacement disconnects the old owner listener, restores surviving local transparency, and cannot let a retained callback alter the replacement. |
+| DHC-08 | In-place objective position/slot changes preserve the same owner binding and create no new listener, GUI, or temporary feedback object. |
+| DHC-09 | Zero or multiple owner-matching candidates hide all candidates and render syncing; returning to exactly one candidate restores one clear association. |
+| DHC-10 | Character replacement is not subscribed to or retained and cannot create another GUI, render loop, objective binding, or movement/input system. |
+| DHC-11 | Stop disconnects every owned signal, restores every surviving objective's prior local transparency, destroys the GUI, clears state, and is idempotent. |
+| DHC-12 | Retained attribute, frame, hierarchy, and objective callbacks after stop are inert; a later restart creates one clean controller without old feedback. |
+| DHC-13 | Separate simulated client contexts classify the same replicated objective set by their own local UserId and never share view or objective state. |
+| DHC-14 | The production and fake dependency surfaces contain no remote, Player attribute writer, outcome callback, input service, Humanoid movement, camera, or server-controller path. |
+
+The existing 104 deterministic cases remain present. Static analysis can prove strict
+types and canonical Roblox requires. Lune can prove the mapper and controller
+orchestration through fakes; it cannot validate actual ScreenGui rendering, text
+visibility, color/contrast, physical objective visibility, replication ordering,
+PlayerGui behavior, comprehension, default-control playability, or multiplayer
+perception. Those claims require scoped human Studio evidence.
+
+### Frozen-scenario coverage and required Studio evidence
+
+Use one exact clean implementation/review commit only after the complete deterministic
+gate passes and independent review has no unresolved blocker. Record the commit, place,
+Rojo/Studio connection, mapped client-script count, server/client player counts and join
+order, relevant attributes, visible text/objective identity on each client, all
+server/per-client warnings and errors, and every limitation. The checkpoint must
+distinguish direct observation from deterministic-only cleanup/partial-replication
+evidence.
+
+| Scenario | Exact TCK-0006 Studio observation |
+| --- | --- |
+| FP-01 | Start one player. Confirm exactly one primitive HUD appears, shows generation-one active objective/countdown feedback promptly, exactly one owner objective is visible, no second bootstrap/HUD/timer appears, and ordinary Roblox movement/camera/jump reach the arena without a custom movement system. |
+| FP-02 | Walk the current living Character into the visible owned objective with normal controls. Confirm the same HUD changes promptly to clear `SUCCESS`, retains it through the server result interval, and later contacts do not append or replace the feedback. |
+| FP-03 | Avoid the objective through the authoritative deadline. Confirm active seconds visibly decrease, zero causes no client-authored transition, and the later server result is clearly shown as timeout failure with the result-interval countdown. |
+| FP-04 | In separate rounds, die and fall below the configured void boundary. Confirm clear death and fall failure text, one result interval per round, and no duplicate feedback from repeated/stale Character signals. |
+| FP-05 | Observe success and failure through result, reset, and automatic replay. Confirm `SUCCESS`/`FAILURE` remains visible during result, changes to a distinct reset countdown, then clears for exactly one greater-generation active countdown with the same player's newly positioned visible objective. |
+| FP-06 | Inspect the mapped client/server tree and runtime network surface: no result/timer/reset/generation remote or client attribute writer exists. Let a client countdown reach zero and confirm it only waits for replicated server state; presentation never changes authoritative attributes or another client. |
+| FP-07 | Continue touching/moving during result/reset and observe normal multi-attribute updates. Confirm no duplicate/stale terminal message or older-generation countdown survives. Retained-callback and forced partial-order permutations remain deterministic evidence, not a Studio rendering claim. |
+| FP-08 | In separate runs, remove the late player once during active and once during result/reset. Confirm the remaining client's HUD, objective association, countdown, and result do not change, the removed client produces no late presentation error, and deterministic stop tests cover listener/transparency cleanup that cannot be directly observed after disconnect. |
+| FP-09 | Start a local server with Player 1 only and wait until Player 1 is visibly active. Then start Player 2 late. On each client, record local UserId, generation, deadline, HUD text, and visible objective owner/slot. Confirm Player 2 immediately gets exactly one independent HUD/countdown and sees only Player 2's objective; Player 1 retains its prior HUD/countdown/result and sees only Player 1's objective. Resolve one player while the other remains active and confirm the two presentations advance independently. |
+| FP-10 | Complete one success then one failure and, in a separate run, one failure then one success. After every automatic reset, confirm prior result/reason/reset text disappears, one greater-generation active countdown starts, exactly one HUD remains, the owner-visible objective is the new server position, and no stale countdown or duplicate bootstrap is visible. |
+
+Character-reset and duplicate-bootstrap evidence is additionally required: reset or
+replace the local Character during active and after a result, then confirm the same
+single `ResetOnSpawn = false` HUD continues, exactly one owner objective remains
+visible, and no extra connection-driven message, GUI, timer, input override, or client
+warning appears. Stop play mode and record explicit server and per-client warning/error
+counts, including zero.
+
+This checkpoint is scoped to presentation of FP-01 through FP-10 on top of merged
+server evidence. It does not reclassify headless results as rendering evidence, prove
+fun, satisfy external playtesting, publish the place, or pass the first-playable
+stopping gate.
+
+### Risks, controls, and failure handling
+
+- **Partial attribute replication:** phase, generation, result, reason, and deadline
+  can arrive separately. Control: defer a full reread, validate complete combinations,
+  use phase-specific countdown clamps, and fall back to preparing/generic failure
+  instead of guessing.
+- **Client authority leakage:** a local deadline or objective view could become an
+  outcome path. Control: presentation has no writer, remote, server controller, or
+  transition callback; zero is display-only.
+- **Wrong-player objective exposure:** all server Parts replicate and full-capacity
+  positions may overlap. Control: fail closed while owner metadata is unresolved or
+  ambiguous, classify by local UserId, and change only local transparency.
+- **Late hierarchy/join ordering:** the LocalScript, Player attributes, arena, folder,
+  and objective may replicate in different orders. Control: bind existing state first,
+  observe later hierarchy/attribute changes idempotently, and render syncing until
+  coherent.
+- **Duplicate bootstrap or feedback:** repeated starts/signals could create stacked
+  GUI and timers. Control: one module singleton, one named GUI, stateless view
+  replacement, exact listener ownership, and Studio exact-count evidence.
+- **Character/reset leakage:** Character-local GUI or listeners could duplicate on
+  replay. Control: use only persistent PlayerGui state and own no Character reference
+  or connection.
+- **Cleanup leakage:** local transparency or retained callbacks could survive stop.
+  Control: store prior values, invalidate first, disconnect all, restore surviving
+  Parts, destroy owned GUI, and test retained callbacks.
+- **Presentation failure:** malformed replication or a missing hierarchy remains a
+  non-authoritative preparing/syncing view. GUI construction failure reports one client
+  warning, cleans partial resources, and does not retry unboundedly or affect the
+  server. The implementation does not hide server errors or turn a presentation
+  failure into gameplay state.
+- **Visual/comprehension uncertainty:** deterministic strings and fakes cannot prove
+  readability or that players recognize their target. Control: require direct
+  one-player, consecutive-replay, two-player, and late-join Studio judgment before
+  `STUDIO_PASS`.
+
+Risk is medium because this slice crosses replicated Roblox attributes, PlayerGui,
+per-client objective visibility, late join, and cleanup boundaries even though it owns
+no outcome. The builder receives two complete-gate attempts. Planning validation and CI
+consume no attempt. Any second failed builder complete gate stops implementation with
+the failure, diagnostics, attempted approaches, and owner decision needed; scope does
+not expand to compensate.
+
+### Human decisions and explicit deferrals
+
+The owner must now approve the exact placeholder text/mapping, owner-only visibility
+policy, four-file implementation boundary, medium-risk/two-attempt budget, deterministic
+matrix, Studio evidence, rollback, and deferrals before `PLAN_APPROVED` or implementation.
+After implementation/review, only the owner may judge actual visibility, clarity,
+objective association, ordinary-control playability, multiplayer/late-join
+comprehension, consecutive replay cleanliness, and whether the first-playable stopping
+gate passes.
+
+Explicitly deferred:
+
+- Final UI layout, art direction, typography, responsive polish, accessibility polish
+  beyond this primitive readable checkpoint, icons, models, particles, animation,
+  audio, music, and haptics.
+- Persistence, saved progression, economy, currency, rewards, monetization, analytics,
+  publishing, production release, migrations, permissions, moderation, external
+  playtesting, and live observation.
+- Obstacles, hazards beyond the existing void, sprint/dash, custom movement, input
+  bindings, camera changes, additional mechanics, content, maps, places, matchmaking,
+  and teleportation.
+- Server lifecycle/timing/objective changes, remotes, client outcome requests,
+  dependencies, frameworks, generalized UI/state/networking abstractions,
+  configuration, project mapping, and frozen acceptance-test changes.
+- Unattended Studio automation, evidence manifests, Studio locks/queues, concurrent
+  worktrees, `OBSERVING`, `CLOSED`, and the first-playable stopping-gate decision. None
+  is started or inferred by planning, CI, implementation, or even a future scoped
+  Studio pass.
+
+TCK-0002's historical `attempts_used: 7` against `attempt_budget: 2` remains a separate,
+truthful workflow record. TCK-0006 does not edit that ticket, inherit its exception
+chain, receive additional scope or attempts because of it, or use it to justify a new
+framework or authority boundary.
+
+### Rollback, exit evidence, and approval gate
+
+Rollback is a normal revert of the future TCK-0006 implementation commit. Removing the
+pure mapper/spec, reverting `DebugHudController` and its extended spec, and allowing the
+existing placeholder controller to resume restores the merged TCK-0005 runtime. Stop
+cleanup removes runtime-only GUI/listeners and restores local objective transparency.
+The slice owns no saved place edits, server state, persistence, economy, published
+assets, migrations, dependencies, configuration, input changes, or irreversible data.
+
+Implementation exit requires all planned mapper/controller cases, the unchanged 104
+existing cases, one authorized complete green `Checks.ps1` builder attempt, an
+independent review with no unresolved blocker, and the scoped human Studio evidence
+above for FP-01 through FP-10, especially FP-09 late joining. Ticket advancement remains
+sequential: `PLAN_APPROVED → BUILDING → STATIC_PASS → CODE_REVIEW_PASS →
+STUDIO_PASS → HUMAN_APPROVED → MERGED`. No implementation, attempt, Studio run,
+merge, publishing action, `OBSERVING`/`CLOSED` state, or stopping-gate decision is
+authorized or inferred by this plan.
+
+The exact next decision is owner approval or requested revision of this TCK-0006 plan.
+Until that explicit decision, the ticket remains `ACCEPTANCE_TESTS_FROZEN` with zero of
+two builder attempts used.
 
 ## First-playable stopping gate
 
