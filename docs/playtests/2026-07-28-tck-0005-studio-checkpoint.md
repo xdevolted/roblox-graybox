@@ -2,7 +2,8 @@
 
 ## Scope and exact state
 
-- Ticket: `TCK-0005` at `CODE_REVIEW_PASS`.
+- Checkpoint entry state: `TCK-0005` at `CODE_REVIEW_PASS`; this historical record supports the checkpoint exit transition to `STUDIO_PASS`, while `docs/tickets/TCK-0005.json` records the current workflow state.
+- Builder accounting entering the checkpoint: attempts `2/2` had already passed and were unchanged by Studio validation.
 - Exact implementation/review commit tested: `fcd80e0bff803535ab1524e0f42dbc84b9319bd7`.
 - Resumed multiplayer checkpoint head: workflow-only record commit `7e741122bb95e95d5bf16b2a7028c151723d8414`; runtime source was unchanged from the reviewed implementation.
 - Pull request: `#16`, open and cleanly mergeable before the checkpoint.
@@ -164,7 +165,7 @@ The exact checkpoint result is **PASS WITH RECORDED LATE-JOIN INFRASTRUCTURE LIM
 
 - The required TCK-0005 Studio scenarios FP-03, FP-04, FP-05, FP-08, and FP-10 passed on the unchanged reviewed runtime. This record supports advancing TCK-0005 from `CODE_REVIEW_PASS` to `STUDIO_PASS`.
 - This record does not authorize `HUMAN_APPROVED`, merge, publishing, Slice 6, or another builder attempt.
-- No builder attempt was consumed because no implementation correction or complete builder gate occurred.
+- No additional builder attempt was consumed by this Studio checkpoint. The two implementation attempts had already been consumed and passed; Studio made no implementation correction and ran no builder gate.
 - Late join, stale callbacks, load failure, shutdown idempotence, and full-capacity fallback remain deterministic evidence unless separately observed. The failed `AddPlayers` path is not treated as a Graybox defect or as FP-09 Studio evidence.
 - TCK-0002 and its historical attempts remain unchanged.
 - The exact next gate is owner review and explicit approval of this Studio result before `HUMAN_APPROVED`. Publishing remains deferred and was not authorized or performed.
