@@ -62,7 +62,7 @@ BLOCKER, MAJOR, or MINOR finding.
    **Disposition: resolved in attempt 2.** The approved `20`, `2`, and `1` second
    windows are centralized without changing deadline behavior.
 
-## First incremental re-review
+## Single incremental re-review and owner escalation
 
 CodeRabbit reviewed attempt 2 and reported four additional outside-diff test-coverage
 findings:
@@ -135,9 +135,12 @@ No unresolved review finding remains.
   lint, analysis, whitespace, or build failure.
 - Exact final-head pull-request CI run `30531023077` and push CI run `30531019039`
   passed for `b2481b316891bac0de021ac2fe0f3681d50ae87c`.
-- CodeRabbit's final incremental run
-  `84f0eb36-fad6-4776-830a-dfb241af5fd7` reviewed the attempt 3 change and updated the
-  PR summary with: "No actionable comments were generated in the recent review."
+- After the owner-authorized attempt 3 escalation, CodeRabbit automation run
+  `84f0eb36-fad6-4776-830a-dfb241af5fd7` refreshed the PR summary with:
+  "No actionable comments were generated in the recent review." This status update is
+  not counted as a second workflow re-review; the durable review sequence remains the
+  initial review plus the single incremental re-review above, followed by the explicit
+  owner escalation decision.
 - PR #19 was open, non-draft, cleanly mergeable, based on `main`, and pointed exactly to
   the final corrected reviewed commit when this record was prepared.
 - The implementation branch was clean and synchronized before this workflow-only
