@@ -3,7 +3,7 @@
   "title": "Primitive client round feedback",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "ACCEPTANCE_TESTS_FROZEN",
+  "state": "PLAN_APPROVED",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0006-primitive-client-feedback",
@@ -13,7 +13,5 @@
   "touches_persistence": false,
   "touches_economy": false,
   "created": "2026-07-30",
-  "human_decisions_pending": [
-    "Owner approval or requested revision of the detailed TCK-0006 plan before PLAN_APPROVED or implementation."
-  ]
+  "human_decisions_pending": []
 }
