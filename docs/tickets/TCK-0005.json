@@ -3,7 +3,7 @@
   "title": "Server-owned failure and reliable replay adapter",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "HUMAN_APPROVED",
+  "state": "MERGED",
   "spec_ref": "docs/features/first-playable/specification.md",
   "acceptance_ref": "docs/features/first-playable/acceptance-tests.md",
   "branch": "feature/tck-0005-failure-replay-adapter",
