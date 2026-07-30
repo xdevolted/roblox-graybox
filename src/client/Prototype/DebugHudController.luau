@@ -136,8 +136,10 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
     end
 
     local provided: Dependencies = dependencies or {}
-    local players = if provided.localPlayer == nil then game:GetService("Players") else nil
-    local localPlayer = provided.localPlayer or players.LocalPlayer
+    local localPlayer: any = provided.localPlayer
+    if localPlayer == nil then
+        localPlayer = game:GetService("Players").LocalPlayer
+    end
     local playerGui = provided.playerGui or localPlayer:WaitForChild("PlayerGui")
     local workspace = provided.workspace or game:GetService("Workspace")
     local renderStepped = provided.renderStepped or game:GetService("RunService").RenderStepped
@@ -171,6 +173,8 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
     local active = true
     local pendingRefresh = false
     local objectiveReady = false
+    local lastText: string? = nil
+    local lastTone: string? = nil
     local baseConnections: { any } = {}
     local arenaConnections: { any } = {}
     local folderConnections: { any } = {}
@@ -197,7 +201,13 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
         if not isCurrent() then
             return
         end
-        view.render(present(readSnapshot(), now(), objectiveReady))
+        local viewModel = present(readSnapshot(), now(), objectiveReady)
+        if viewModel.text == lastText and viewModel.tone == lastTone then
+            return
+        end
+        lastText = viewModel.text
+        lastTone = viewModel.tone
+        view.render(viewModel)
     end
 
     local function scheduleRefresh()
@@ -261,7 +271,7 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
         setLocalTransparency(candidate, record.originalTransparency)
     end
 
-    local function bindCandidate(candidate: any)
+    local function bindCandidate(candidate: any, refreshAfterBinding: boolean?)
         if not isCurrent() or not isBasePart(candidate) or candidates[candidate] ~= nil then
             return
         end
@@ -280,7 +290,9 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
                 end
                 refreshObjectives()
             end)
-        refreshObjectives()
+        if refreshAfterBinding ~= false then
+            refreshObjectives()
+        end
     end
 
     local function clearCandidates()
@@ -334,7 +346,7 @@ function DebugHudController.start(dependencies: Dependencies?): Controller
         )
 
         for _, child in getChildren(folder) do
-            bindCandidate(child)
+            bindCandidate(child, false)
         end
         refreshObjectives()
     end

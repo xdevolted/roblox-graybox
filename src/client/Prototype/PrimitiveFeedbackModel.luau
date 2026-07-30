@@ -10,6 +10,10 @@ export type ViewModel = {
 
 local PrimitiveFeedbackModel = {}
 
+local ACTIVE_WINDOW_SECONDS = 20
+local RESULT_WINDOW_SECONDS = 2
+local RESET_WINDOW_SECONDS = 1
+
 local function isFiniteNumber(value: any): boolean
     return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
@@ -72,7 +76,7 @@ function PrimitiveFeedbackModel.present(
             return preparingView()
         end
 
-        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, 20)
+        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, ACTIVE_WINDOW_SECONDS)
         local instruction = if objectiveReady == true
             then "REACH YOUR GLOWING ZONE"
             else "OBJECTIVE SYNCING..."
@@ -116,7 +120,7 @@ function PrimitiveFeedbackModel.present(
             return preparingView()
         end
 
-        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, 2)
+        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, RESULT_WINDOW_SECONDS)
         local view: ViewModel = {
             phase = "RESULT",
             generation = validGeneration,
@@ -135,7 +139,7 @@ function PrimitiveFeedbackModel.present(
             return preparingView()
         end
 
-        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, 1)
+        local remaining = remainingSeconds(snapshot.phaseEndsAt, currentTime, RESET_WINDOW_SECONDS)
         local view: ViewModel = {
             phase = "RESETTING",
             generation = validGeneration,

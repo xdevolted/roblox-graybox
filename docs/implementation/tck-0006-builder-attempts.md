@@ -47,3 +47,41 @@ Risk tier: medium. Builder budget: two complete-gate attempts.
   Luau analysis completed without diagnostics; the Lune harness reported 131 passed and
   0 failed; unstaged, staged, and tracked-file whitespace validation passed; and Rojo
   built `RobloxGraybox.rbxlx` successfully.
+- Studio/playtest evidence: pending. No Studio or human playtest has run for TCK-0006,
+  so there is no tested commit or observed runtime result to record yet.
+
+## Attempt 2
+
+- Status: passed.
+- Authorization: assess the completed CodeRabbit review on PR #19 and correct only
+  valid in-scope findings.
+- Starting state: exact reviewed head
+  `8eb7ab7eb245acd50b8123907837f9592d8d8875`; ticket `STATIC_PASS`; attempt 1
+  passed; exact-head CI passed; clean synchronized implementation branch; no Studio
+  evidence or merge.
+- Accepted findings: lazily resolve `Players.LocalPlayer` only when no injected Player
+  exists; batch the initial objective scan into one refresh; avoid redundant per-frame
+  view writes when visible presentation is unchanged; name the approved
+  countdown-window constants; and explicitly record pending Studio evidence.
+- Rejected finding: the suggested exported `ViewModel` type expression is not valid
+  Luau syntax, and binding the model through the repository's conditional Roblox/Lune
+  require pattern erases the exported type namespace under strict analysis. Hoisting an
+  unconditional Roblox Instance require would break the Lune harness. The exact strict
+  local structural type is therefore retained.
+- Accounting: attempt 2 is consumed by this authorized review-correction session;
+  `attempt_budget` remains two and `attempts_used` becomes two.
+- Required validation: focused formatting, lint, strict analysis, and all Lune cases,
+  followed by one complete `scripts/Checks.ps1` gate after the corrections converge.
+- Focused pre-gate validation: formatting, Selene with zero diagnostics, sourcemap
+  generation, exact strict source analysis, and all 131 Lune cases passed. Two
+  attempted forms of the suggested exported-type reuse failed before the complete
+  gate: the proposed direct expression was invalid Luau syntax, and the repository's
+  conditional Roblox/Lune require pattern did not preserve the exported type namespace.
+  Restoring the exact strict local structural type resolved the diagnostics. These
+  focused checks were not complete-gate attempts.
+- Complete gate allowance: one `scripts/Checks.ps1` run after focused validation.
+- Complete gate outcome: passed on the single authorized run. StyLua passed; Selene
+  reported 0 errors, 0 warnings, and 0 parse errors; sourcemap generation and strict
+  Luau analysis completed without diagnostics; the Lune harness reported 131 passed and
+  0 failed; whitespace validation passed; and Rojo built `RobloxGraybox.rbxlx`
+  successfully.

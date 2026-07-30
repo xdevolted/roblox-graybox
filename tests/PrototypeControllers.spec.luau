@@ -394,17 +394,38 @@ return {
             end,
         },
         {
-            name = "DHC-04 treats countdown zero as presentation only",
+            name = "DHC-04 renders countdown changes only and treats zero as presentation",
             run = function()
                 withEnvironment(function(environment: any)
                     environment:setActiveAttributes(1, 110)
                     environment:start()
+                    local rendersBefore = #environment.renders
+
+                    environment.renderStepped:Fire()
+                    environment.nowValue = 100.1
+                    environment.renderStepped:Fire()
+                    assert(
+                        #environment.renders == rendersBefore,
+                        "unchanged visible countdown must not rewrite the view"
+                    )
+
+                    environment.nowValue = 101
+                    environment.renderStepped:Fire()
+                    assert(
+                        #environment.renders == rendersBefore + 1,
+                        "a changed visible countdown must render once"
+                    )
+
                     environment.nowValue = 120
                     environment.renderStepped:Fire()
 
                     local view = lastRender(environment)
                     assert(view.phase == "ACTIVE", "client time must not change phase")
                     assert(view.remainingSeconds == 0, "expired display must render zero")
+                    assert(
+                        #environment.renders == rendersBefore + 2,
+                        "countdown zero must render exactly once"
+                    )
                     assert(
                         environment.localPlayer.unauthorizedAttributeWrites == 0,
                         "controller must not write Player attributes"
