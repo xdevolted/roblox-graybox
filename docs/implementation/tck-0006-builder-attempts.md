@@ -85,3 +85,37 @@ Risk tier: medium. Builder budget: two complete-gate attempts.
   Luau analysis completed without diagnostics; the Lune harness reported 131 passed and
   0 failed; whitespace validation passed; and Rojo built `RobloxGraybox.rbxlx`
   successfully.
+
+## Exceptional attempt 3 - explicitly owner-authorized
+
+- Status: passed.
+- Human authorization: correct the remaining issues reported by CodeRabbit after the
+  attempt 2 incremental review, with an explicit exception to the original two-attempt
+  budget.
+- Starting state: exact reviewed correction commit
+  `36f59958f724e35b7450d19ed19acacf7ec4c64b`; ticket `STATIC_PASS`; attempts 1 and
+  2 passed; exact-head CI run `30527512115` passed; CodeRabbit incremental review
+  completed with three valid test-coverage findings and one rejected dependency-surface
+  proposal; no Studio evidence or merge.
+- Permitted test correction: require exactly one initial render in DHC-01; assert the
+  removed candidate's owner listener disconnects immediately in DHC-07; and start the
+  replacement controller before flushing the old queued callback in DHC-12.
+- Rejected finding: adding remote, input, movement, or camera dependency seams merely
+  to install sentinels would violate DHC-14's approved requirement that the production
+  and fake dependency surfaces contain no such paths. Their absence remains established
+  by the narrow exported dependency surface, strict source inspection, and the
+  controller's existing no-write/no-Character/no-extra-view test.
+- Accounting: the original `attempt_budget` remains two and `attempts_used` truthfully
+  records three after this explicit owner exception.
+- Required validation: focused formatting, lint, strict analysis, and all Lune cases,
+  followed by one complete `scripts/Checks.ps1` gate after the corrections converge.
+- Focused pre-gate validation: formatting, Selene with zero diagnostics, sourcemap
+  generation, exact strict source analysis, and all 131 Lune cases passed. The three
+  new assertions passed without production changes. These focused checks were not the
+  complete gate.
+- Complete gate allowance: one `scripts/Checks.ps1` run after focused validation.
+- Complete gate outcome: passed on the single authorized run. StyLua passed; Selene
+  reported 0 errors, 0 warnings, and 0 parse errors; sourcemap generation and strict
+  Luau analysis completed without diagnostics; the Lune harness reported 131 passed and
+  0 failed; whitespace validation passed; and Rojo built `RobloxGraybox.rbxlx`
+  successfully.

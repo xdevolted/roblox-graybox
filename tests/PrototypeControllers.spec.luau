@@ -327,7 +327,7 @@ return {
                             `expected {expected} connections, got {environment:totalConnects()}`
                         )
                         assert(environment.viewCreateCount == 1, "one view must be created")
-                        assert(#environment.renders >= 1, "initial snapshot must render")
+                        assert(#environment.renders == 1, "initial snapshot must render once")
                     end)
                 end
 
@@ -503,6 +503,10 @@ return {
                         old.LocalTransparencyModifier == 0.25,
                         "removed candidate must restore original transparency"
                     )
+                    assert(
+                        oldSignal.disconnectCount == 1,
+                        "removed candidate owner listener must disconnect once"
+                    )
 
                     local replacement = environment:addCandidate(folder, "Replacement", 101, 0.4)
                     assert(
@@ -645,15 +649,20 @@ return {
                     for _, signal in originalSignals do
                         signal:FireRetained()
                     end
-                    environment:flushDeferred()
                     assert(
                         #environment.renders == rendersBeforeStop,
-                        "retained callbacks must not render after stop"
+                        "retained immediate callbacks must not render after stop"
                     )
 
                     local second = environment:start()
                     assert(second ~= first, "restart must create a fresh controller")
                     assert(environment.viewCreateCount == 2, "restart must create one fresh view")
+                    local rendersAfterRestart = #environment.renders
+                    environment:flushDeferred()
+                    assert(
+                        #environment.renders == rendersAfterRestart,
+                        "old queued callback must remain inert after restart"
+                    )
                 end)
             end,
         },
