@@ -748,13 +748,14 @@ system:
   across Character replacement and shows the active countdown, immutable result and
   result interval, reset countdown, and next clean active round.
 - During `ACTIVE`, show the round generation, an instruction to reach the visible
-  glowing objective, and `ceil(GrayboxPhaseEndsAt - serverNow)` clamped to `0..20`.
+  glowing objective, and a validated `ceil(GrayboxPhaseEndsAt - serverNow)` countdown
+  from `0..20` when the replicated deadline is valid.
 - During `RESULT`, show unambiguous `SUCCESS` or `FAILURE` text. Failure additionally
   maps `TIMEOUT`, `DEATH`, and `VOID` to plain-language reasons. Continue showing the
-  result while rendering the next-round interval clamped to `0..2`.
+  result while rendering a validated next-round interval from `0..2` when available.
 - During `RESETTING`, replace terminal feedback with `RESETTING` and a next-round
-  countdown clamped to `0..1`. A following `ACTIVE` generation replaces all prior
-  result/reset text rather than layering another temporary message.
+  countdown from `0..1` when available. A following `ACTIVE` generation replaces all
+  prior result/reset text rather than layering another temporary message.
 - Treat `WAITING`, missing phase/generation/result data, invalid types, unknown enum
   values, and contradictory multi-attribute snapshots as `PREPARING ROUND...`. A valid
   replicated `FAILURE` whose reason has not arrived yet may show generic `FAILURE`;
@@ -783,35 +784,87 @@ or state machine.
 
 ### Replicated presentation contract
 
-The engine-free presentation mapper accepts one freshly read snapshot plus the current
-server-time estimate and returns a frozen view model. It has no clock, Roblox object,
-listener, callback, or mutation of its own.
+The engine-free presentation mapper accepts exactly three inputs: one freshly read
+replicated snapshot, the current server-time estimate, and an explicit
+`objectiveReady` value computed by the controller. `objectiveReady` has two allowed
+production values: `true` means exactly one current direct BasePart child of the bound
+objectives folder has a finite integer `GrayboxObjectiveOwnerUserId` equal to
+`LocalPlayer.UserId`; `false` means zero or multiple candidates match, or the hierarchy
+or ownership data is unresolved or malformed. A missing or non-boolean test input is
+handled as `false`.
+
+The controller alone enumerates objective candidates, validates owner IDs, changes
+local transparency, and computes `objectiveReady`. The mapper uses that boolean only to
+choose the active instruction and never inspects Instances, owner IDs, objective lists,
+or hierarchy state. It otherwise has no clock, Roblox object, listener, callback, or
+mutation of its own and returns one frozen view model.
 
 | Replicated snapshot | Primitive presentation | Countdown rule |
 | --- | --- | --- |
-| Coherent `ACTIVE`, generation `g`, exactly one owned objective | `ROUND g` / `REACH YOUR GLOWING ZONE` | Ceiling of the deadline delta, clamped to `0..20` |
-| Coherent `ACTIVE` without exactly one owned objective | `ROUND g` / `OBJECTIVE SYNCING...` | Same active countdown when the deadline is valid |
-| `RESULT` with `SUCCESS` | `SUCCESS` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
-| `RESULT` with `FAILURE/TIMEOUT` | `FAILURE — TIMEOUT` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
-| `RESULT` with `FAILURE/DEATH` | `FAILURE — DEATH` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
-| `RESULT` with `FAILURE/VOID` | `FAILURE — FELL` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
-| `RESULT` with replicated `FAILURE` but a temporarily missing reason | Generic `FAILURE` / `NEXT ROUND IN n` | Deadline delta clamped to `0..2` |
-| Coherent `RESETTING` | `RESETTING` / `ROUND STARTS IN n` | Deadline delta clamped to `0..1` |
+| Coherent `ACTIVE`, generation `g`, `objectiveReady = true` | `ROUND g` / `REACH YOUR GLOWING ZONE` | Valid deadline uses `n` from `0..20` |
+| Coherent `ACTIVE`, generation `g`, `objectiveReady = false` | `ROUND g` / `OBJECTIVE SYNCING...` | Valid deadline uses `n` from `0..20` |
+| `RESULT` with `SUCCESS` | `SUCCESS` / `NEXT ROUND IN n` | Valid deadline uses `n` from `0..2` |
+| `RESULT` with `FAILURE/TIMEOUT` | `FAILURE — TIMEOUT` / `NEXT ROUND IN n` | Valid deadline uses `n` from `0..2` |
+| `RESULT` with `FAILURE/DEATH` | `FAILURE — DEATH` / `NEXT ROUND IN n` | Valid deadline uses `n` from `0..2` |
+| `RESULT` with `FAILURE/VOID` | `FAILURE — FELL` / `NEXT ROUND IN n` | Valid deadline uses `n` from `0..2` |
+| `RESULT` with replicated `FAILURE` but a temporarily missing reason | Generic `FAILURE` / `NEXT ROUND IN n` | Valid deadline uses `n` from `0..2` |
+| Coherent `RESETTING` | `RESETTING` / `ROUND STARTS IN n` | Valid deadline uses `n` from `0..1` |
 | Missing, malformed, unknown, or cross-phase values | `PREPARING ROUND...` | No fabricated countdown |
 
 The mapper accepts only nonnegative integer generations, with a positive generation
 required for `ACTIVE`, `RESULT`, or `RESETTING`; finite numeric deadlines and current
 times; approved phase/result/reason strings; and combinations permitted by the frozen
-lifecycle. An absent, expired, or implausible deadline never changes phase or causes an
-outcome; it yields either zero or no countdown according to the validated mapping.
-Phase-specific clamps prevent a stale active deadline from rendering a long result/reset
-interval while the later timing attribute is still replicating.
+lifecycle.
 
-Every relevant attribute-change signal triggers a deferred full reread, and the render
-step refreshes only time-dependent text from another full snapshot. Multiple signals
-from one server publication may therefore cause harmless repeated renders, but cannot
-append feedback, start a local timer chain, or mutate authoritative state. The client
-never preserves a terminal view across a server-published phase/generation change.
+Countdown mapping is exact. Let `maximum` be `20` for `ACTIVE`, `2` for `RESULT`, and
+`1` for `RESETTING`, and let `delta = GrayboxPhaseEndsAt - serverNow`:
+
+1. A missing, nonnumeric, NaN, or infinite deadline or current time returns
+   `remainingSeconds = nil`.
+2. `delta < 0` is expired and returns `remainingSeconds = 0`.
+3. `0 <= delta <= maximum`, with both boundaries inclusive, returns
+   `remainingSeconds = math.ceil(delta)`.
+4. `delta > maximum` is an out-of-range future deadline for the current phase and
+   returns `remainingSeconds = nil`; it is not clamped down.
+
+`remainingSeconds = nil` omits numeric time: active uses `TIME SYNCING...`, result uses
+`NEXT ROUND...`, and resetting uses `ROUND STARTING...`. `remainingSeconds = 0` renders
+the applicable numeric zero text. Neither case changes phase or causes an outcome.
+Rejecting a future delta above the phase maximum prevents a stale active deadline from
+rendering a long result/reset interval while the later timing attribute is still
+replicating.
+
+The first pending LocalPlayer attribute-change callback schedules one deferred full
+reread. Further attribute changes before that callback runs are coalesced into the same
+reread. The deferred callback first clears the pending flag, then verifies that the
+controller is still active and current before reading all five attributes. The render
+step refreshes only time-dependent text from another full snapshot. Repeated
+publications may rerender but cannot append feedback, start a local timer chain, or
+mutate authoritative state. The client never preserves a terminal view across a
+server-published phase/generation change.
+
+### Canonical controller signal inventory
+
+Each hierarchy level connects its child signals before enumerating existing children.
+Duplicate add/remove delivery is handled by identity-keyed binding guards. These are the
+only permitted production signal connections:
+
+| Signal source | Exact connection ownership | Replacement and cleanup |
+| --- | --- | --- |
+| `LocalPlayer:GetAttributeChangedSignal(...)` | One connection for each of `GrayboxRoundPhase`, `GrayboxRoundGeneration`, `GrayboxRoundResult`, `GrayboxRoundFailureReason`, and `GrayboxPhaseEndsAt` for the controller lifetime | Coalesce into the one pending full reread; disconnect all five on `stop()` |
+| `RunService.RenderStepped` | Exactly one connection for the controller lifetime | Disconnect on `stop()`; retained callbacks check active/current identity |
+| `Workspace.ChildAdded` and `Workspace.ChildRemoved` | Exactly one connection to each for the controller lifetime, filtering only the direct child named `GrayboxArena` | Disconnect both on `stop()`; arena removal unbinds its entire lower hierarchy before any replacement binds |
+| Current `GrayboxArena.ChildAdded` and `.ChildRemoved` | Exactly one connection to each while that exact arena is bound, filtering only the direct child named `Objectives` | Disconnect both before arena replacement/removal and on `stop()`; folder removal unbinds every candidate first |
+| Current `Objectives.ChildAdded` and `.ChildRemoved` | Exactly one connection to each while that exact folder is bound, filtering direct BasePart children | Disconnect both before folder replacement/removal and on `stop()`; child removal unbinds that candidate |
+| Candidate `GetAttributeChangedSignal("GrayboxObjectiveOwnerUserId")` | Exactly one connection per currently bound direct BasePart candidate | Disconnect before candidate removal/replacement and on `stop()`; retained callbacks must match the current candidate record |
+
+The exact connection count is therefore eight with no arena, ten with an arena but no
+objectives folder, twelve with an arena and objectives folder, and `12 + candidateCount`
+when candidates are bound. Synchronous enumeration, the one deferred refresh token, and
+GUI construction create no signal connections. No Character, Humanoid, input, camera,
+remote, descendant-wide, ancestry, or general property-change signal is permitted.
+Aside from the one coalesced `task.defer` refresh callback, no delayed task or per-phase
+client timer is permitted.
 
 ### Client authority, bootstrap, and cleanup
 
@@ -870,33 +923,33 @@ Pure presentation mapping:
 | --- | --- |
 | PFM-01 | `WAITING`, missing phase, unknown phase, malformed generation, and cross-phase result data produce only the preparing view and no invented countdown. |
 | PFM-02 | A coherent active snapshot maps the exact round/instruction text and ceilings a finite deadline delta deterministically. |
-| PFM-03 | Active time is clamped to `0..20`; an expired deadline never triggers a local result or transition. |
-| PFM-04 | Active presentation reports objective syncing unless exactly one valid owner association is ready. |
+| PFM-03 | Active deltas at `0` and `20` are accepted inclusively, an expired delta returns zero, a future delta above `20` returns no countdown, and none triggers a local result or transition. |
+| PFM-04 | Literal `objectiveReady = true` maps the active objective instruction; false, missing, and non-boolean values map objective syncing, and the mapper never derives ownership itself. |
 | PFM-05 | Success maps to unambiguous success text, no failure reason, and a `0..2` next-round countdown. |
 | PFM-06 | Each approved failure reason maps to distinct plain-language failure text without changing the immutable replicated result. |
 | PFM-07 | A replicated failure with a transiently absent reason remains generic failure; malformed or contradictory result combinations fall back safely. |
 | PFM-08 | Resetting clears terminal text and maps only the `0..1` reset/next-round countdown. |
-| PFM-09 | Missing, nonnumeric, NaN, infinite, expired, and implausibly distant deadlines cannot render an out-of-range countdown or mutate the phase. |
+| PFM-09 | For each phase maximum, missing/nonnumeric/NaN/infinite time returns no countdown, negative delta returns zero, both `0` and the maximum are inclusive, and a delta above the maximum returns no countdown without phase mutation. |
 | PFM-10 | Active → success/failure result → resetting → greater-generation active sequences carry no prior result, reason, or countdown text forward. |
 | PFM-11 | Repeated identical snapshots and times return equal deterministic frozen view models without accumulating temporary messages. |
-| PFM-12 | Objective ownership is ready only for exactly one candidate with a valid owner ID equal to the local user; unresolved, foreign, malformed, and duplicate-owned candidates are not presented as the target. |
+| PFM-12 | The mapper accepts the controller's boolean readiness input independently from the replicated snapshot and time, uses it only for active instruction text, and ignores it for result/reset outcome mapping. |
 
 Thin Roblox presentation controller using narrow fakes:
 
 | ID | Test |
 | --- | --- |
-| DHC-01 | First start creates exactly one GUI, performs one full snapshot read/render, and connects exactly the approved attribute, frame, and hierarchy signals. |
+| DHC-01 | First start creates exactly one GUI, performs one full snapshot read/render, and matches the canonical `8`, `10`, `12`, or `12 + candidateCount` connection formula for the supplied hierarchy. |
 | DHC-02 | Repeated start returns the active controller and creates no duplicate GUI, listener, objective binding, or render loop. |
-| DHC-03 | Attribute bursts defer a full reread; repeated callbacks may rerender but cannot append a second result/reset message or retain stale generation text. |
+| DHC-03 | An attribute burst schedules at most one deferred full reread; its callback clears the pending flag, rereads all five attributes only while active/current, and cannot append a second result/reset message or retain stale generation text. |
 | DHC-04 | Render ticks update only mapped time text, and reaching zero performs no SetAttribute, remote call, lifecycle request, Character load, objective write, or local phase transition. |
-| DHC-05 | Existing arena/objective hierarchy binds once; one locally owned objective is shown while foreign and unresolved objectives are locally hidden. |
+| DHC-05 | Existing hierarchy connects each level before enumeration; exactly one direct BasePart candidate with a finite integer owner ID equal to the local UserId is shown and produces `objectiveReady = true`, while foreign and unresolved candidates are hidden. |
 | DHC-06 | Late arena, folder, objective, and owner-attribute replication converges to the same owner-specific visibility without a bootstrap retry or duplicate binding. |
 | DHC-07 | Objective removal/replacement disconnects the old owner listener, restores surviving local transparency, and cannot let a retained callback alter the replacement. |
 | DHC-08 | In-place objective position/slot changes preserve the same owner binding and create no new listener, GUI, or temporary feedback object. |
 | DHC-09 | Zero or multiple owner-matching candidates hide all candidates and render syncing; returning to exactly one candidate restores one clear association. |
 | DHC-10 | Character replacement is not subscribed to or retained and cannot create another GUI, render loop, objective binding, or movement/input system. |
-| DHC-11 | Stop disconnects every owned signal, restores every surviving objective's prior local transparency, destroys the GUI, clears state, and is idempotent. |
-| DHC-12 | Retained attribute, frame, hierarchy, and objective callbacks after stop are inert; a later restart creates one clean controller without old feedback. |
+| DHC-11 | Stop disconnects every connection in the canonical inventory, restores every surviving objective's prior local transparency, destroys the GUI, clears state, and is idempotent. |
+| DHC-12 | Retained attribute, deferred-refresh, frame, hierarchy, and objective callbacks after stop are inert; a later restart creates one clean controller without old feedback. |
 | DHC-13 | Separate simulated client contexts classify the same replicated objective set by their own local UserId and never share view or objective state. |
 | DHC-14 | The production and fake dependency surfaces contain no remote, Player attribute writer, outcome callback, input service, Humanoid movement, camera, or server-controller path. |
 
@@ -946,8 +999,8 @@ stopping gate.
 
 - **Partial attribute replication:** phase, generation, result, reason, and deadline
   can arrive separately. Control: defer a full reread, validate complete combinations,
-  use phase-specific countdown clamps, and fall back to preparing/generic failure
-  instead of guessing.
+  apply the exact phase-specific deadline windows and nil/zero rules, and fall back to
+  preparing/generic failure instead of guessing.
 - **Client authority leakage:** a local deadline or objective view could become an
   outcome path. Control: presentation has no writer, remote, server controller, or
   transition callback; zero is display-only.
