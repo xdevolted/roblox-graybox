@@ -9,11 +9,13 @@ type Assignment = {
 type PlacementRejection =
     "INVALID_PREFERENCE"
     | "DUPLICATE_PLAYER"
+    | "UNKNOWN_PLAYER"
     | "NO_AVAILABLE_SLOT"
     | "DESTROYED"
 
 type PlacementRegistry = {
     assign: (player: any, preferredIndex: any) -> (Assignment?, PlacementRejection?),
+    reassign: (player: any, preferredIndex: any) -> (Assignment?, PlacementRejection?),
     get: (player: any) -> Assignment?,
     remove: (player: any) -> boolean,
     destroy: () -> (),
@@ -41,8 +43,31 @@ export type InstanceSpec = {
 
 type InstanceFactory = (spec: InstanceSpec, parent: any) -> any
 type PreferredIndex = (player: any) -> number
+type ObjectiveMover = (objective: any, assignment: Assignment) -> ()
 
 local SafeSpawnObjectiveAdapter = {}
+
+local function normalizePlacementRejection(rejection: string?): PlacementRejection?
+    if rejection == nil then
+        return nil
+    end
+    if rejection == "INVALID_PREFERENCE" then
+        return "INVALID_PREFERENCE"
+    end
+    if rejection == "DUPLICATE_PLAYER" then
+        return "DUPLICATE_PLAYER"
+    end
+    if rejection == "UNKNOWN_PLAYER" then
+        return "UNKNOWN_PLAYER"
+    end
+    if rejection == "NO_AVAILABLE_SLOT" then
+        return "NO_AVAILABLE_SLOT"
+    end
+    if rejection == "DESTROYED" then
+        return "DESTROYED"
+    end
+    error(`unexpected ObjectivePlacement rejection: {rejection}`)
+end
 
 local staticGeometry: { InstanceSpec } = {
     {
@@ -88,11 +113,13 @@ export type Dependencies = {
     instanceFactory: InstanceFactory?,
     registryFactory: PlacementRegistryFactory?,
     preferredIndex: PreferredIndex?,
+    moveObjective: ObjectiveMover?,
 }
 
 export type Controller = {
     getAssignment: (player: any) -> Assignment?,
     getObjective: (player: any) -> any?,
+    repositionObjective: (player: any) -> (Assignment?, PlacementRejection?),
     stop: () -> (),
 }
 
@@ -104,6 +131,12 @@ end
 
 local function defaultPreferredIndex(player: any): number
     return (math.abs(player.UserId) % 8) + 1
+end
+
+local function defaultMoveObjective(objective: any, assignment: Assignment)
+    objective.Name = `Objective_{assignment.slotId}`
+    objective.Position = Vector3.new(assignment.x, 0.75, assignment.z)
+    objective:SetAttribute("GrayboxObjectiveSlot", assignment.slotId)
 end
 
 local function defaultInstanceFactory(spec: InstanceSpec, parent: any): any
@@ -148,6 +181,7 @@ function SafeSpawnObjectiveAdapter.start(dependencies: Dependencies?): Controlle
     local registryFactory: PlacementRegistryFactory = provided.registryFactory
         or defaultRegistryFactory
     local preferredIndex: PreferredIndex = provided.preferredIndex or defaultPreferredIndex
+    local moveObjective: ObjectiveMover = provided.moveObjective or defaultMoveObjective
 
     local registry = registryFactory()
     local objectives: { [any]: any } = {}
@@ -233,6 +267,27 @@ function SafeSpawnObjectiveAdapter.start(dependencies: Dependencies?): Controlle
         return objectives[player]
     end
 
+    local function repositionObjective(player: any): (Assignment?, PlacementRejection?)
+        if stopped then
+            return nil, "DESTROYED"
+        end
+
+        local objective = objectives[player]
+        local previous = registry.get(player)
+        if objective == nil or previous == nil then
+            return nil, "UNKNOWN_PLAYER"
+        end
+
+        local preferredIndexForReplay = (previous.slotId % 8) + 1
+        local assignment, rejection = registry.reassign(player, preferredIndexForReplay)
+        if assignment == nil then
+            return nil, normalizePlacementRejection(rejection)
+        end
+
+        moveObjective(objective, assignment)
+        return assignment, nil
+    end
+
     local function stop()
         if stopped then
             return
@@ -260,6 +315,7 @@ function SafeSpawnObjectiveAdapter.start(dependencies: Dependencies?): Controlle
     return table.freeze({
         getAssignment = getAssignment,
         getObjective = getObjective,
+        repositionObjective = repositionObjective,
         stop = stop,
     }) :: Controller
 end
