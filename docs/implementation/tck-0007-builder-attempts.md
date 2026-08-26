@@ -6,7 +6,7 @@ Risk tier: medium. Builder budget: two complete-gate attempts.
 
 - Status: passed.
 - Authorization: implement the owner-approved cosmetic rain plan and frozen RAIN-01 through RAIN-08 scenarios.
-- Starting state: authoritative `main` commit `3e1b526a5ae4d05f8d92b966bf3e11d9295fe908`, clean fresh clone, and branch `feature/tck-0007-cosmetic-rain`.
+- Starting state: authoritative `main` commit `3e1b526f0ccc00a8782aed1bae41c0b5b45b7cda`, clean fresh clone, and branch `feature/tck-0007-cosmetic-rain`.
 - Accounting: implementation consumed attempt 1; `attempt_budget` remains two and `attempts_used` is one.
 - Production implementation: added one client-local `RainController` that owns one invisible 64-by-1-by-64 box-volume `ParticleEmitter`, follows a finite current-camera position 28 studs overhead on one render connection, starts and stops idempotently, fails safely while view state is unavailable, and cleans retained callbacks and runtime objects. Client bootstrap starts it once. No server/shared gameplay code, remotes, Player attributes, Character/Humanoid state, Lighting, dependencies, or project mapping changed.
 - Deterministic specifications: added RC-01 through RC-10 for singleton start, movement, malformed/non-finite position rejection, Character/round isolation, cleanup, retained callbacks, restart, construction failure, simulated client isolation, and absence of gameplay authority. The original 131 cases remained present for 141 total.

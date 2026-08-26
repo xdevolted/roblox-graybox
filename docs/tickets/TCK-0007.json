@@ -3,7 +3,7 @@
   "title": "Client-local cosmetic rain",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "STATIC_PASS",
+  "state": "CODE_REVIEW_PASS",
   "spec_ref": "docs/features/rain/specification.md",
   "acceptance_ref": "docs/features/rain/acceptance-tests.md",
   "branch": "feature/tck-0007-cosmetic-rain",
@@ -14,6 +14,6 @@
   "touches_economy": false,
   "created": "2026-08-25",
   "human_decisions_pending": [
-    "Studio approval of rain readability and performance"
+    "Complete RAIN-01 object-count and RAIN-02 through RAIN-08 Studio validation"
   ]
 }
