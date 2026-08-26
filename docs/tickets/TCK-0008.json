@@ -1,0 +1,19 @@
+{
+  "id": "TCK-0008",
+  "title": "Heavy rain and local ambience",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "PLAN_APPROVED",
+  "spec_ref": "docs/features/heavy-rain-ambience/specification.md",
+  "acceptance_ref": "docs/features/heavy-rain-ambience/acceptance-tests.md",
+  "branch": "feature/tck-0008-heavy-rain-ambience",
+  "attempt_budget": 2,
+  "attempts_used": 0,
+  "authority_sensitive": false,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-08-25",
+  "human_decisions_pending": [
+    "Studio approval of heavy-rain density, audio playback, readability, and performance"
+  ]
+}
