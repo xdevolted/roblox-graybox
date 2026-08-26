@@ -1,8 +1,8 @@
 {
   "files.eol": "\n",
+  "luau-lsp.sourcemap.sourcemapFile": "build/sourcemap.json",
   "[luau]": {
     "editor.defaultFormatter": "JohnnyMorganz.stylua",
     "editor.formatOnSave": true
   }
 }
-

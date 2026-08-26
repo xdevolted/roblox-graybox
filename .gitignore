@@ -9,6 +9,11 @@
 /build/
 /Packages/
 /ServerPackages/
+/.artifacts/
+/sourcemap.json
+
+# User-local Roblox Studio AXI overrides
+/.axi/config.local.toml
 
 # Editor and operating-system noise
 .DS_Store

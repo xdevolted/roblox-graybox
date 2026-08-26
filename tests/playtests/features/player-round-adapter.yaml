@@ -1,0 +1,71 @@
+schema_version: 1
+id: player-round-adapter-initial-snapshot
+title: Player round adapter replicates its initial snapshot
+
+# Derived from tests/GameLoop/PlayerRoundAdapter.spec.luau:
+# "writes exactly four attributes for accepted snapshots".
+setup:
+  mode: play
+  timeout_seconds: 60
+
+steps:
+  - action: wait_for_player
+    id: player_ready
+    timeout_seconds: 20
+
+  - action: wait
+    id: initial_snapshot_settled
+    duration_ms: 500
+
+  - action: capture
+    id: initialized_capture
+    label: player-round-initialized
+
+assertions:
+  - id: phase_is_active
+    type: probe
+    context: client
+    code: |
+      local player = game:GetService("Players").LocalPlayer
+      return player:GetAttribute("GrayboxRoundPhase")
+    operator: equals
+    expected: ACTIVE
+    after_step: initialized_capture
+
+  - id: generation_starts_at_one
+    type: probe
+    context: client
+    code: |
+      local player = game:GetService("Players").LocalPlayer
+      return player:GetAttribute("GrayboxRoundGeneration")
+    operator: equals
+    expected: 1
+    after_step: initialized_capture
+
+  - id: result_starts_unset
+    type: probe
+    context: client
+    code: |
+      local player = game:GetService("Players").LocalPlayer
+      return player:GetAttribute("GrayboxRoundResult")
+    operator: equals
+    expected: nil
+    after_step: initialized_capture
+
+  - id: failure_reason_starts_unset
+    type: probe
+    context: client
+    code: |
+      local player = game:GetService("Players").LocalPlayer
+      return player:GetAttribute("GrayboxRoundFailureReason")
+    operator: equals
+    expected: nil
+    after_step: initialized_capture
+
+  - id: no_initialization_console_errors
+    type: console_errors
+    maximum: 0
+    after_step: initialized_capture
+
+cleanup:
+  stop_playtest: true

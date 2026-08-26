@@ -1,0 +1,29 @@
+schema_version: 1
+id: baseline-smoke
+title: Graybox enters a clean playable session
+
+setup:
+  mode: play
+  timeout_seconds: 60
+
+steps:
+  - action: wait_for_player
+    id: player_ready
+    timeout_seconds: 20
+
+  - action: wait
+    id: startup_settled
+    duration_ms: 1000
+
+  - action: capture
+    id: spawned_capture
+    label: spawned
+
+assertions:
+  - id: no_immediate_console_errors
+    type: console_errors
+    maximum: 0
+    after_step: spawned_capture
+
+cleanup:
+  stop_playtest: true
