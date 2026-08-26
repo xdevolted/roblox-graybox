@@ -3,7 +3,7 @@
   "title": "Client-local cosmetic rain",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "HUMAN_APPROVED",
+  "state": "MERGED",
   "spec_ref": "docs/features/rain/specification.md",
   "acceptance_ref": "docs/features/rain/acceptance-tests.md",
   "branch": "feature/tck-0007-cosmetic-rain",
