@@ -1,7 +1,11 @@
 --!strict
 
-type RainEffect = {
+type RainLayer = {
     setPosition: (position: any) -> (),
+    destroy: () -> (),
+}
+
+type RainSound = {
     destroy: () -> (),
 }
 
@@ -9,26 +13,39 @@ type Controller = {
     stop: () -> (),
 }
 
-type EffectFactory = (world: any) -> RainEffect
+type LayerFactory = (world: any, layerIndex: number) -> RainLayer
+type SoundFactory = (soundParent: any) -> RainSound
 type TargetPositionReader = (world: any) -> any?
 type PositionValidator = (position: any) -> boolean
 
 local RainController = {}
 
+local LAYER_COUNT = 2
+local SOUND_ID = "rbxassetid://1516791621"
+local LAYER_OFFSET_SPECS = {
+    { x = -10, y = 0, z = -8 },
+    { x = 10, y = 6, z = 8 },
+}
+
 local activeController: Controller? = nil
 
 export type Dependencies = {
     world: any?,
+    soundParent: any?,
     renderStepped: any?,
-    createEffect: EffectFactory?,
+    createLayer: LayerFactory?,
+    createSound: SoundFactory?,
     readTargetPosition: TargetPositionReader?,
     isFinitePosition: PositionValidator?,
     reportWarning: ((message: string) -> ())?,
 }
 
-local function defaultCreateEffect(world: any): RainEffect
+local function defaultCreateLayer(world: any, layerIndex: number): RainLayer
+    local offsetSpec = assert(LAYER_OFFSET_SPECS[layerIndex], "rain layer index is out of range")
+    local offset = Vector3.new(offsetSpec.x, offsetSpec.y, offsetSpec.z)
+
     local volume = Instance.new("Part")
-    volume.Name = "GrayboxRainVolume"
+    volume.Name = `GrayboxRainVolume{layerIndex}`
     volume.Size = Vector3.new(64, 1, 64)
     volume.Anchored = true
     volume.Transparency = 1
@@ -38,7 +55,7 @@ local function defaultCreateEffect(world: any): RainEffect
     volume.CastShadow = false
 
     local emitter = Instance.new("ParticleEmitter")
-    emitter.Name = "GrayboxRainEmitter"
+    emitter.Name = `GrayboxRainEmitter{layerIndex}`
     emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
     emitter.Shape = Enum.ParticleEmitterShape.Box
     emitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
@@ -69,7 +86,7 @@ local function defaultCreateEffect(world: any): RainEffect
         if destroyed then
             return
         end
-        volume.Position = position
+        volume.Position = position + offset
     end
 
     local function destroy()
@@ -82,6 +99,38 @@ local function defaultCreateEffect(world: any): RainEffect
 
     return table.freeze({
         setPosition = setPosition,
+        destroy = destroy,
+    })
+end
+
+local function defaultCreateSound(soundParent: any): RainSound
+    local sound = Instance.new("Sound")
+    sound.Name = "GrayboxRainAmbience"
+    sound.SoundId = SOUND_ID
+    sound.Looped = true
+    sound.Volume = 0.35
+    sound.Parent = soundParent
+
+    local played, playError = pcall(function()
+        sound:Play()
+    end)
+    if not played then
+        sound:Destroy()
+        error(playError)
+    end
+
+    local destroyed = false
+
+    local function destroy()
+        if destroyed then
+            return
+        end
+        destroyed = true
+        sound:Stop()
+        sound:Destroy()
+    end
+
+    return table.freeze({
         destroy = destroy,
     })
 end
@@ -115,6 +164,20 @@ local function disconnect(connection: any?)
     end
 end
 
+local function makeFailedController(): Controller
+    local failedController: Controller
+    local function stopFailed()
+        if activeController == failedController then
+            activeController = nil
+        end
+    end
+    failedController = table.freeze({
+        stop = stopFailed,
+    })
+    activeController = failedController
+    return failedController
+end
+
 function RainController.start(dependencies: Dependencies?): Controller
     if activeController ~= nil then
         return activeController
@@ -122,28 +185,34 @@ function RainController.start(dependencies: Dependencies?): Controller
 
     local provided: Dependencies = dependencies or {}
     local world = provided.world or game:GetService("Workspace")
+    local soundParent = provided.soundParent or game:GetService("SoundService")
     local renderStepped = provided.renderStepped or game:GetService("RunService").RenderStepped
-    local createEffect = provided.createEffect or defaultCreateEffect
+    local createLayer = provided.createLayer or defaultCreateLayer
+    local createSound = provided.createSound or defaultCreateSound
     local readTargetPosition = provided.readTargetPosition or defaultReadTargetPosition
     local isFinitePosition = provided.isFinitePosition or defaultIsFinitePosition
     local reportWarning = provided.reportWarning or defaultReportWarning
 
-    local created, effectOrError = pcall(createEffect, world)
-    if not created then
-        reportWarning(`rain presentation creation failed: {tostring(effectOrError)}`)
-        local failedController: Controller
-        local function stopFailed()
-            if activeController == failedController then
-                activeController = nil
+    local layers: { RainLayer } = {}
+    for layerIndex = 1, LAYER_COUNT do
+        local created, layerOrError = pcall(createLayer, world, layerIndex)
+        if not created then
+            for _, layer in layers do
+                layer.destroy()
             end
+            reportWarning(`rain layer {layerIndex} creation failed: {tostring(layerOrError)}`)
+            return makeFailedController()
         end
-        failedController = table.freeze({
-            stop = stopFailed,
-        })
-        activeController = failedController
-        return failedController
+        table.insert(layers, layerOrError :: RainLayer)
     end
-    local effect = effectOrError :: RainEffect
+
+    local sound: RainSound? = nil
+    local soundCreated, soundOrError = pcall(createSound, soundParent)
+    if soundCreated then
+        sound = soundOrError :: RainSound
+    else
+        reportWarning(`rain ambience creation failed: {tostring(soundOrError)}`)
+    end
 
     local active = true
     local renderConnection: any? = nil
@@ -162,7 +231,9 @@ function RainController.start(dependencies: Dependencies?): Controller
         if not readSucceeded or not isFinitePosition(targetPosition) then
             return
         end
-        effect.setPosition(targetPosition)
+        for _, layer in layers do
+            layer.setPosition(targetPosition)
+        end
     end
 
     local function stop()
@@ -172,7 +243,14 @@ function RainController.start(dependencies: Dependencies?): Controller
         active = false
         disconnect(renderConnection)
         renderConnection = nil
-        effect.destroy()
+        if sound ~= nil then
+            sound.destroy()
+            sound = nil
+        end
+        for _, layer in layers do
+            layer.destroy()
+        end
+        table.clear(layers)
 
         if activeController == controller then
             activeController = nil
