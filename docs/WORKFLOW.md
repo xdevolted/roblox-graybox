@@ -11,7 +11,7 @@
 
 ## Per-slice evidence
 
-Before Studio, require a green `Checks.ps1` run and no unresolved review blockers. For Studio or a human playtest, record the exact commit, frozen scenarios exercised, console warnings/errors, result, observations, and remaining human decisions. A video or confidence score is never the sole exit condition.
+Before Studio, require a green `Checks.ps1` run and no unresolved review blockers. The `main` ruleset requires the GitHub `CI / checks` status check before merge. For Studio or a human playtest, record the exact commit, frozen scenarios exercised, console warnings/errors, result, observations, and remaining human decisions. A video or confidence score is never the sole exit condition.
 
 ## Graybox playtest protocol
 
@@ -26,5 +26,5 @@ Fix comprehension failures first because they obscure every other signal. Discar
 
 - Add a Studio playtest skill only after frozen scenarios are run manually more than twice per day and MCP play-mode has been stable for one week.
 - Add persistence safeguards only after external validation and a real need for persistent progression.
-- Adopt evidence manifests, a Studio lock/queue, concurrent worktrees, staging-place automation, and required PR gates only when the loop is proven, persistence is being introduced, and a published place has returning players.
+- Adopt evidence manifests, a Studio lock/queue, concurrent worktrees, and staging-place automation only when the loop is proven, persistence is being introduced, and a published place has returning players.
 - Production publishing, migrations, economy, moderation, and account permissions remain human-only.

@@ -31,6 +31,20 @@ Open a baseplate in Studio and connect the Rojo plugin to `localhost:34872`. Stu
 | `.\scripts\Checks.ps1` | Run formatting, lint, strict analysis, tests, whitespace validation, and build |
 | `.\scripts\Format.ps1` | Format Luau source and tests |
 
+## Roblox Studio AXI smoke test
+
+The reusable `roblox-studio-axi` package is consumed through its linked executable. Build the local place, enable Studio's built-in MCP server, then validate or run the project-owned smoke test:
+
+```powershell
+.\scripts\Build.ps1
+roblox-studio-axi test validate tests/playtests/baseline/smoke.yaml
+roblox-studio-axi test run tests/playtests/baseline/smoke.yaml
+roblox-studio-axi test validate tests/playtests/features/player-round-adapter.yaml
+roblox-studio-axi test run tests/playtests/features/player-round-adapter.yaml
+```
+
+Project identity and safety policy live in `.axi/config.toml`; the shared AXI contains no graybox-specific logic. Evidence is written under the ignored `.artifacts/playtests/` directory. The smoke test verifies only generic startup health, player readiness, a viewport capture, no new immediate console errors, and cleanup. The feature playtest derives its initial replicated attribute expectations from `tests/GameLoop/PlayerRoundAdapter.spec.luau`. These automated checks do not replace the frozen gameplay acceptance scenarios or human fun/comprehension evaluation.
+
 ## Layout
 
 - `src/shared`: engine-free rules and types where practical.
@@ -43,6 +57,12 @@ Open a baseplate in Studio and connect the Rojo plugin to `localhost:34872`. Stu
 - `build`: ignored generated places, sourcemaps, and downloaded type definitions.
 
 The root `default.project.json` is the only Rojo project. Introduce a multi-place layout only when a second real place is required, and share proven common code through explicit packages.
+
+## Studio-authored content and place safety
+
+The current graybox arena is constructed at runtime, and Rojo maps only the scripts under `src/`. Do not rely on an unsaved or unpublished Studio-only instance as durable project state. Before adding a hand-built map, terrain, lighting, UI hierarchy, or other authored content, choose and document its source of truth: a Rojo-mapped filesystem asset, a versioned Roblox package/asset with explicit ownership and recovery, or an intentionally authoritative place.
+
+When this project targets a stable Roblox place, add its ID to `servePlaceIds` in `default.project.json` so Rojo refuses to synchronize into the wrong place. Keep production publishing human-controlled.
 
 ## Feature flow
 

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[project]
+name = "roblox-graybox"
+expected_place_name = "RobloxGraybox"
+local_place = "build/RobloxGraybox.rbxlx"
+
+[studio]
+startup_timeout_seconds = 60
+operation_timeout_seconds = 30
+
+[testing]
+playtests = "tests/playtests"
+workflows = ".axi/workflows"
+default_workflow = "smoke"
+
+[evidence]
+directory = ".artifacts/playtests"
+screenshots = "on_failure"
+console = "errors_and_warnings"
+
+[safety]
+environment = "test"
+allow_publish = false
+allow_live_datastores = false
+always_stop_playtest = true
