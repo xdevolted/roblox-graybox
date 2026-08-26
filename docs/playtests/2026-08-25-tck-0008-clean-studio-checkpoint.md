@@ -50,3 +50,11 @@ this record preserves those evidence limits rather than inventing measurements.
 TCK-0008 advances from `CODE_REVIEW_PASS` to `STUDIO_PASS`. The corrected clean rebuild
 satisfies HRA-01 through HRA-08 with the stated human-evidence limitations. Human
 approval and the merge decision remain pending; publishing is not authorized.
+
+## Subsequent human approval and merge
+
+After this Studio checkpoint, the owner explicitly answered `yes` when asked whether
+to merge PR #24. PR #24 was then squash-merged into authoritative `main` as commit
+`a756b66ef0b5b947accfbfb4b9ff044624f5e671` on 2026-08-25 Pacific time
+(2026-08-26 UTC). This records the transition from `STUDIO_PASS` through explicit
+human approval to `MERGED`. Publishing remains unauthorized.
