@@ -3,7 +3,7 @@
   "title": "Heavy rain and local ambience",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "STATIC_PASS",
+  "state": "CODE_REVIEW_PASS",
   "spec_ref": "docs/features/heavy-rain-ambience/specification.md",
   "acceptance_ref": "docs/features/heavy-rain-ambience/acceptance-tests.md",
   "branch": "feature/tck-0008-heavy-rain-ambience",
