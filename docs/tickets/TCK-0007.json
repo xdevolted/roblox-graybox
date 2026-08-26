@@ -1,0 +1,19 @@
+{
+  "id": "TCK-0007",
+  "title": "Client-local cosmetic rain",
+  "type": "feature-slice",
+  "risk_tier": "medium",
+  "state": "STATIC_PASS",
+  "spec_ref": "docs/features/rain/specification.md",
+  "acceptance_ref": "docs/features/rain/acceptance-tests.md",
+  "branch": "feature/tck-0007-cosmetic-rain",
+  "attempt_budget": 2,
+  "attempts_used": 1,
+  "authority_sensitive": false,
+  "touches_persistence": false,
+  "touches_economy": false,
+  "created": "2026-08-25",
+  "human_decisions_pending": [
+    "Studio approval of rain readability and performance"
+  ]
+}

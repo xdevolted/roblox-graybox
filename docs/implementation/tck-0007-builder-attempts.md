@@ -1,0 +1,15 @@
+# TCK-0007 builder attempts
+
+Risk tier: medium. Builder budget: two complete-gate attempts.
+
+## Attempt 1
+
+- Status: passed.
+- Authorization: implement the owner-approved cosmetic rain plan and frozen RAIN-01 through RAIN-08 scenarios.
+- Starting state: authoritative `main` commit `3e1b526a5ae4d05f8d92b966bf3e11d9295fe908`, clean fresh clone, and branch `feature/tck-0007-cosmetic-rain`.
+- Accounting: implementation consumed attempt 1; `attempt_budget` remains two and `attempts_used` is one.
+- Production implementation: added one client-local `RainController` that owns one invisible 64-by-1-by-64 box-volume `ParticleEmitter`, follows a finite current-camera position 28 studs overhead on one render connection, starts and stops idempotently, fails safely while view state is unavailable, and cleans retained callbacks and runtime objects. Client bootstrap starts it once. No server/shared gameplay code, remotes, Player attributes, Character/Humanoid state, Lighting, dependencies, or project mapping changed.
+- Deterministic specifications: added RC-01 through RC-10 for singleton start, movement, malformed/non-finite position rejection, Character/round isolation, cleanup, retained callbacks, restart, construction failure, simulated client isolation, and absence of gameplay authority. The original 131 cases remained present for 141 total.
+- Focused pre-gate validation: StyLua formatting/check, Selene with zero diagnostics, sourcemap generation, exact strict Luau analysis, and all 141 Lune cases passed. One initial test-only Selene warning identified a simulated state value that was only written; an explicit assertion corrected it before the complete gate. Fresh-clone setup reused the already installed pinned Rokit tool binaries, ran pinned Wally installation, and copied the exact SHA-256-verified Roblox definitions from the untouched original directory because the Rokit bootstrap executable itself was unavailable. These focused/setup checks were not additional complete-gate attempts.
+- Complete gate outcome: passed on the single `scripts/Checks.ps1` run. StyLua passed; Selene reported 0 errors, 0 warnings, and 0 parse errors; sourcemap generation and strict Luau analysis completed without diagnostics; the Lune harness reported 141 passed and 0 failed; unstaged, staged, and tracked-file whitespace validation passed; and Rojo built `RobloxGraybox.rbxlx` successfully.
+- Studio/playtest evidence: pending. Studio must still verify recognizable rain, camera-relative coverage, single-emitter behavior across respawn/replay and late join, readability, runtime warnings/errors, and acceptable performance.
