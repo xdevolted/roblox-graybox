@@ -3,7 +3,7 @@
   "title": "Heavy rain and local ambience",
   "type": "feature-slice",
   "risk_tier": "medium",
-  "state": "CODE_REVIEW_PASS",
+  "state": "STUDIO_PASS",
   "spec_ref": "docs/features/heavy-rain-ambience/specification.md",
   "acceptance_ref": "docs/features/heavy-rain-ambience/acceptance-tests.md",
   "branch": "feature/tck-0008-heavy-rain-ambience-v2",
@@ -14,6 +14,6 @@
   "touches_economy": false,
   "created": "2026-08-25",
   "human_decisions_pending": [
-    "Studio approval of heavy-rain density, audio playback, readability, and performance"
+    "Human approval and merge decision"
   ]
 }
