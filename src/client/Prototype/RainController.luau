@@ -105,18 +105,17 @@ end
 
 local function defaultCreateSound(soundParent: any): RainSound
     local sound = Instance.new("Sound")
-    sound.Name = "GrayboxRainAmbience"
-    sound.SoundId = SOUND_ID
-    sound.Looped = true
-    sound.Volume = 0.35
-    sound.Parent = soundParent
-
-    local played, playError = pcall(function()
+    local configuredAndPlayed, soundError = pcall(function()
+        sound.Name = "GrayboxRainAmbience"
+        sound.SoundId = SOUND_ID
+        sound.Looped = true
+        sound.Volume = 0.35
+        sound.Parent = soundParent
         sound:Play()
     end)
-    if not played then
+    if not configuredAndPlayed then
         sound:Destroy()
-        error(playError)
+        error(soundError)
     end
 
     local destroyed = false

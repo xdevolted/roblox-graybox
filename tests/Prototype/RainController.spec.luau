@@ -73,15 +73,18 @@ local function newEnvironment(): any
         soundPlayCount = 0,
         soundDestroyCount = 0,
         partialSoundDestroyCount = 0,
+        defaultSoundCreateCount = 0,
+        defaultSoundDestroyCount = 0,
         positionReads = 0,
         warnings = {},
         failLayerIndex = nil,
         failSound = false,
+        useDefaultSound = false,
         controller = nil,
     }
 
     function environment.dependencies(_environment: any): any
-        return {
+        local dependencies = {
             world = world,
             soundParent = soundParent,
             renderStepped = renderStepped,
@@ -138,6 +141,10 @@ local function newEnvironment(): any
                 table.insert(environment.warnings, message)
             end,
         }
+        if environment.useDefaultSound then
+            dependencies.createSound = nil
+        end
+        return dependencies
     end
 
     function environment.start(_environment: any): any
@@ -318,6 +325,53 @@ return {
                     assert(#environment.warnings == 1, "audio failure must warn once")
                     environment.renderStepped:Fire()
                     assert(environment.soundCreateCount == 1, "updates must not retry sound")
+                end)
+
+                withEnvironment(function(environment: any)
+                    local moduleEnvironment = getfenv(RainController.start)
+                    local originalInstance = moduleEnvironment.Instance
+                    environment.useDefaultSound = true
+                    moduleEnvironment.Instance = {
+                        new = function(className: string): any
+                            assert(className == "Sound", "default factory must create only a Sound")
+                            environment.defaultSoundCreateCount += 1
+                            local sound = {}
+                            function sound.Destroy(_sound: any)
+                                environment.defaultSoundDestroyCount += 1
+                            end
+                            return setmetatable(sound, {
+                                __newindex = function(target: any, key: any, value: any)
+                                    if key == "Parent" then
+                                        error("planned sound parenting failure")
+                                    end
+                                    rawset(target, key, value)
+                                end,
+                            })
+                        end,
+                    }
+
+                    local succeeded, message = pcall(function()
+                        environment:start()
+                    end)
+                    moduleEnvironment.Instance = originalInstance
+                    if not succeeded then
+                        error(message)
+                    end
+
+                    assert(
+                        environment.defaultSoundCreateCount == 1,
+                        "production factory must create one partial sound"
+                    )
+                    assert(
+                        environment.defaultSoundDestroyCount == 1,
+                        "production factory must destroy a partial sound after construction failure"
+                    )
+                    assert(environment.layerCreateCount == 2, "both visual layers must survive")
+                    assert(
+                        environment.renderStepped.connectCount == 1,
+                        "visuals must keep listener"
+                    )
+                    assert(#environment.warnings == 1, "construction failure must warn once")
                 end)
             end,
         },
