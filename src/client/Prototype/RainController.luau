@@ -45,17 +45,20 @@ local function defaultCreateEffect(world: any): RainEffect
     emitter.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
     emitter.EmissionDirection = Enum.NormalId.Bottom
     emitter.SpreadAngle = Vector2.new(5, 5)
-    emitter.Rate = 650
-    emitter.Speed = NumberRange.new(55, 70)
-    emitter.Lifetime = NumberRange.new(1.1, 1.4)
-    emitter.Size = NumberSequence.new(0.09)
+    emitter.Rate = 400
+    emitter.Speed = NumberRange.new(0)
+    emitter.Acceleration = Vector3.new(0, -110, 0)
+    emitter.Lifetime = NumberRange.new(0.9, 1.1)
+    emitter.Size = NumberSequence.new(0.28)
+    emitter.Squash = NumberSequence.new(4)
+    emitter.Orientation = Enum.ParticleOrientation.FacingCameraWorldUp
     emitter.Color = ColorSequence.new(Color3.fromRGB(190, 220, 255))
     emitter.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.15),
+        NumberSequenceKeypoint.new(0, 0.05),
         NumberSequenceKeypoint.new(1, 0.55),
     })
     emitter.LightInfluence = 0
-    emitter.LightEmission = 0.35
+    emitter.LightEmission = 0.65
     emitter.Enabled = true
     emitter.Parent = volume
     volume.Parent = world
