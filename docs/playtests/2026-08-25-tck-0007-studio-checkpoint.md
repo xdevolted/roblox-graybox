@@ -1,4 +1,4 @@
-# TCK-0007 Studio checkpoint - partial visibility evidence
+# TCK-0007 Studio checkpoint - owner-confirmed pass
 
 ## Scope and exact state
 
@@ -8,28 +8,30 @@
 - Rojo server: version `7.6.1`, PID `23744`, `127.0.0.1:34872`, session `201483ab-58c5-47e9-99dc-9710453e36ea`.
 - Rojo live-tree verification: `RainController` existed, client bootstrap called `RainController.start()`, and the corrected visible-streak source values were present.
 - Independent review: initial review plus single permitted documentation-only re-review completed with 0 BLOCKER, 0 MAJOR, 0 MINOR, and 0 NIT findings.
-- Checkpoint result: partial only. This record supports `STATIC_PASS -> CODE_REVIEW_PASS`; it does not support `STUDIO_PASS`, `HUMAN_APPROVED`, merge, or publishing.
+- Checkpoint result: owner-confirmed pass. This record supports `CODE_REVIEW_PASS -> STUDIO_PASS -> HUMAN_APPROVED`; it does not authorize publishing.
 
 ## Direct owner report
 
 After the old non-Git Rojo server was replaced with the feature-clone server and the visibility correction was synced, the owner stated: `Rain is visible`.
 
-This establishes that recognizable rain rendered in the observed Studio session. The report did not include an exact Player count, exact rain-volume/emitter count, traversal observation, respawn/replay observation, late join, missing-camera recovery, cleanup/restart, frame-rate judgment, or server/client warning and error counts. Those claims remain pending and are not inferred.
+This established that recognizable rain rendered in the observed Studio session. The initial report did not include the remaining checklist details.
+
+After receiving the explicit remaining checklist, the owner reported `all tests pass` and directed work to continue to the next slice. This is direct human confirmation that the exact-one presentation count, movement coverage, respawn/replay duplication check, gameplay readability, late-join isolation, console cleanliness, and performance judgment all passed. No automated Studio transcript, numeric frame-time capture, or detailed warning/error listing was supplied, so this record preserves those evidence limitations rather than inventing measurements.
 
 ## Frozen-scenario status
 
 | Scenario | Current checkpoint status |
 | --- | --- |
-| RAIN-01 | Partial pass: recognizable rain was owner-observed. Exact-one `GrayboxRainVolume` and `GrayboxRainEmitter` were not counted. |
-| RAIN-02 | Pending: cross-platform camera-relative coverage was not reported. |
-| RAIN-03 | Deterministic/review evidence confirms no authority path; direct Studio runtime-surface observation remains pending. |
-| RAIN-04 | Pending: death/fall, respawn, replay, and no-duplication observation was not reported. |
-| RAIN-05 | Pending: safe-zone/platform/HUD readability under rain was not reported. |
-| RAIN-06 | Pending: two-client late join and isolation were not observed. |
-| RAIN-07 | Deterministic tests cover stop/restart and retained callbacks; Studio shutdown warning/error evidence remains pending. |
-| RAIN-08 | Deterministic tests cover malformed/non-finite positions; practical current-camera replacement and error-loop observation remain pending. |
+| RAIN-01 | Pass by owner confirmation: recognizable rain and exactly one local volume/emitter presentation. |
+| RAIN-02 | Pass by owner confirmation: rain followed the view across platform movement. |
+| RAIN-03 | Pass by deterministic/review evidence plus owner confirmation that gameplay behavior remained unchanged. |
+| RAIN-04 | Pass by owner confirmation: death/respawn/replay did not duplicate rain. |
+| RAIN-05 | Pass by owner confirmation: safe zone, platform, HUD, countdown, and results remained readable. |
+| RAIN-06 | Pass by owner confirmation: late-join presentation and player lifecycles remained isolated. |
+| RAIN-07 | Pass by deterministic evidence and owner confirmation of clean Studio shutdown/runtime behavior. |
+| RAIN-08 | Pass by deterministic malformed-position evidence and owner confirmation of runtime recovery/cleanliness. |
 
-## Remaining Studio checklist
+## Completed Studio checklist
 
 1. In one client, count exactly one `GrayboxRainVolume` with one `GrayboxRainEmitter` while rain is visible.
 2. Cross distant platform points and confirm the rain follows the view.
@@ -43,5 +45,6 @@ This establishes that recognizable rain rendered in the observed Studio session.
 
 ## Decision
 
-- Continue TCK-0007 Studio validation from `CODE_REVIEW_PASS`.
-- Do not merge or begin the dependent heavy-rain ambience implementation until the remaining RAIN-01 through RAIN-08 observations pass and the owner explicitly approves the checkpoint.
+- TCK-0007 passes the scoped Studio checkpoint with human-reported evidence limitations recorded above.
+- The owner explicitly approved the result and directed work to continue to the dependent heavy-rain ambience slice.
+- This supports human approval and merge of TCK-0007; it does not authorize publishing.
